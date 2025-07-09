@@ -36,7 +36,7 @@ fun AppNavigation(windowSizeClass: WindowSizeClass) {
         composable(Screen.ProductEdit.route) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toLongOrNull()
             ProductEditScreen(
-                productId = productId,
+                productId = productId.toString(),
                 windowSizeClass = windowSizeClass,
                 onNavigateUp = { navController.navigateUp() }
             )

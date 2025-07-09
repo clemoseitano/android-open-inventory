@@ -1,31 +1,21 @@
 package com.coptimize.openinventory.data.repository
 
-import com.coptimize.openinventory.data.dao.ProductDao
 import com.coptimize.openinventory.data.model.Product
 import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ProductRepository @Inject constructor(private val productDao: ProductDao) {
+// This is the contract. The ViewModel only knows about this.
+interface ProductRepository {
+    fun getAllActiveProducts(): Flow<List<Product>>
 
-    fun getAllActiveProducts(): Flow<List<Product>> {
-        return productDao.getAllActiveProducts()
-    }
+    fun getArchivedProducts(): Flow<List<Product>>
 
-    suspend fun getProduct(id: String): Product? {
-        return productDao.getProductById(id)
-    }
+    suspend fun getProduct(id: String): Product?
 
-    suspend fun addProduct(product: Product) {
-        productDao.insertProduct(product)
-    }
+    suspend fun addProduct(product: Product)
 
-    suspend fun updateProduct(product: Product) {
-        productDao.updateProduct(product)
-    }
+    suspend fun updateProduct(product: Product)
 
-    suspend fun deleteProduct(productId: String) {
-        productDao.softDeleteProduct(productId)
-    }
+    suspend fun deleteProduct(productId: String, userId: String? = null) // userId is optional
+
+    suspend fun restoreProduct(productId: String, userId: String? = null) // userId is optional
 }

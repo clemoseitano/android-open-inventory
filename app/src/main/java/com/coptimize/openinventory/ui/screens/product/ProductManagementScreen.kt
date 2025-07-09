@@ -14,22 +14,26 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.coptimize.openinventory.data.Product
-import com.coptimize.openinventory.data.SampleData
+import com.coptimize.openinventory.data.model.Product
 import com.coptimize.openinventory.navigation.Screen
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ProductManagementScreen(windowSizeClass: WindowSizeClass, navController: NavController) {
+fun ProductManagementScreen(
+    windowSizeClass: WindowSizeClass,
+    navController: NavController,
+    viewModel: ProductManagementViewModel= hiltViewModel()) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
     val tabs = listOf("Active", "Archived")
 
     // State for the screen
-    var activeProducts by remember { mutableStateOf(SampleData.products) }
-    var archivedProducts by remember { mutableStateOf(SampleData.products.take(5)) }
+    val activeProducts by viewModel.activeProducts.collectAsStateWithLifecycle()
+    val archivedProducts by viewModel.archivedProducts.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -68,13 +72,13 @@ fun ProductManagementScreen(windowSizeClass: WindowSizeClass, navController: Nav
                     0 -> ProductManagementList(
                         products = activeProducts,
                         onEdit = { product ->
-                            navController.navigate(Screen.ProductEdit.createRoute(product.id))
+                            navController.navigate(Screen.ProductEdit.createRoute(product.id.toLong()))
                         },
-                        onDelete = { /* TODO: Call ViewModel to delete */ }
+                        onDelete = {product-> viewModel.deleteProduct(product = product) }
                     )
                     1 -> ProductManagementList(
                         products = archivedProducts,
-                        onRestore = { /* TODO: Call ViewModel to restore */ }
+                        onRestore = { product-> viewModel.restoreProduct(product = product)  }
                     )
                 }
             }
@@ -84,7 +88,7 @@ fun ProductManagementScreen(windowSizeClass: WindowSizeClass, navController: Nav
 
 @Composable
 fun ProductManagementList(
-    products: List<Product>,
+    products: List<com.coptimize.openinventory.data.model.Product>,
     onEdit: ((Product) -> Unit)? = null,
     onDelete: ((Product) -> Unit)? = null,
     onRestore: ((Product) -> Unit)? = null
@@ -103,7 +107,7 @@ fun ProductManagementList(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(product.name, style = MaterialTheme.typography.titleMedium)
-                        Text("Stock: ${product.stockQuantity} | Barcode: ${product.barcode}", style = MaterialTheme.typography.bodySmall)
+                        Text("Stock: ${product.quantity} | Barcode: ${product.barcode}", style = MaterialTheme.typography.bodySmall)
                     }
                     if (onEdit != null && onDelete != null) {
                         TextButton(onClick = { onEdit(product) }) { Text("Edit") }

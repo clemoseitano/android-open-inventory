@@ -1,0 +1,11 @@
+-- Insert a new saved cart with the user who saved it
+insert:
+INSERT INTO saved_carts (customer_id, items, status, user_id)
+VALUES (:customer_id, :items, :status, :user_id);
+
+-- Update the status of a saved cart
+updateStatus:
+UPDATE saved_carts
+SET status = :status,
+    user_id = :userId -- Also log the user who completed/cancelled the cart
+WHERE id = :id;

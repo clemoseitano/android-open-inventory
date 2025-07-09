@@ -6,25 +6,27 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.sqldelight)
-}
-
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 sqldelight {
-    // Database for Non-Auth Mode
-    database("NonAuthDb") {
-        packageName = "com.coptimize.openinventory.data"
-        sourceFolders = listOf("src/main/sqldelight")
-    }
+    databases {
+        // Database for Non-Auth Mode
+        create("NonAuthDb") {
+            packageName.set("com.coptimize.openinventory.data")
+            // Use srcDir() to specify the source directory
+            srcDirs.setFrom("src/main/sqldelight")
+        }
 
-    // Database for Auth Mode
-    database("AuthDb") {
-        packageName = "com.coptimize.openinventory.data.auth"
-        sourceFolders = listOf("src/auth/sqldelight")
+        // Database for Auth Mode
+        create("AuthDb") {
+            packageName.set("com.coptimize.openinventory.data.auth")
+            // Use srcDir() here as well
+            srcDirs.setFrom("src/auth/sqldelight")
+        }
     }
 }
+
 
 android {
     namespace = "com.coptimize.openinventory"
@@ -88,16 +90,12 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.runtime)
-    // START: TO REMOVE
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-    // END: TO REMOVE
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.sqldelight.android.driver)
     implementation(libs.sqldelight.coroutines.extensions)
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

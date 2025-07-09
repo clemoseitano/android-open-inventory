@@ -1,0 +1,49 @@
+-- Get all non-deleted products
+selectAllActive:
+SELECT *
+FROM products
+WHERE deleted_at IS NULL
+ORDER BY name;
+
+-- Get all archived products
+selectDeleted:
+SELECT *
+FROM products AS Products
+WHERE deleted_at IS NOT NULL
+ORDER BY name;
+
+-- Insert a new product
+insert:
+INSERT INTO products (name, category, manufacturer, barcode, price, tax, tax_is_flat_rate, quantity, image_path)
+VALUES (:name, :category, :manufacturer, :barcode, :price, :tax, :tax_is_flat_rate, :quantity, :image_path);
+
+-- Get a specific product by its ID
+selectById:
+SELECT * FROM products WHERE id = :productId;
+
+-- Soft delete a product
+softDelete:
+UPDATE products SET deleted_at = CURRENT_TIMESTAMP WHERE id = :productId;
+
+-- Restore a soft-deleted product
+restore:
+UPDATE products SET deleted_at = NULL WHERE id = :productId;
+
+-- Decrement a product
+decrement:
+UPDATE products SET quantity = quantity - :quantity_change WHERE id = :productId;
+
+
+-- Update a product
+update:
+UPDATE products
+SET name = :name,
+    category = :category,
+    manufacturer = :manufacturer,
+    barcode = :barcode,
+    price = :price,
+    tax = :tax,
+    tax_is_flat_rate = :taxIsFlatRate,
+    quantity = quantity + :quantity_change, -- Use a distinct parameter name
+    image_path = :imagePath
+WHERE id = :id;
