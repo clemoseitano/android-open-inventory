@@ -88,7 +88,7 @@ fun ProductManagementScreen(
 
 @Composable
 fun ProductManagementList(
-    products: List<com.coptimize.openinventory.data.model.Product>,
+    products: List<Product>,
     onEdit: ((Product) -> Unit)? = null,
     onDelete: ((Product) -> Unit)? = null,
     onRestore: ((Product) -> Unit)? = null
@@ -107,7 +107,7 @@ fun ProductManagementList(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(product.name, style = MaterialTheme.typography.titleMedium)
-                        Text("Stock: ${product.quantity} | Barcode: ${product.barcode}", style = MaterialTheme.typography.bodySmall)
+                        Text("Stock: ${product.quantity} | Barcode: ${if (product.barcode.isNullOrBlank()) "No" else product.barcode}", style = MaterialTheme.typography.bodySmall)
                     }
                     if (onEdit != null && onDelete != null) {
                         TextButton(onClick = { onEdit(product) }) { Text("Edit") }

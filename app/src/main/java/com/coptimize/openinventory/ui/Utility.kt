@@ -14,7 +14,7 @@ fun stringToDate(dateString: String): Date{
 }
 
 // Helper to format date to a readable date string
-fun formatDateForDisplay(date: Date, format: String): String {
+fun formatDateForDisplay(date: Date, format: String= "MMM dd, yyyy"): String {
     var format = format
     val cal: Calendar = GregorianCalendar()
     cal.setTime(date)
@@ -38,7 +38,7 @@ fun formatDateForDisplay(date: Date, format: String): String {
 
 fun Long.formatAsDateForDisplay(): String {
     val date = Date(this)
-    var format = "MMM dd hh:mm aa"
+    var format = "MMM dd, 2027"
 
     val cal: Calendar = GregorianCalendar()
     cal.time = date

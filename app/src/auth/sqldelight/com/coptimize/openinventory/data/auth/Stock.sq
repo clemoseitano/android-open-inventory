@@ -1,0 +1,7 @@
+-- Insert a new stock (with user_id)
+insert:
+INSERT INTO stocks (product_id, supplier, supplier_contact, unit_price, purchase_price, purchase_date, expiry_date, quantity, user_id) VALUES (:product_id, :supplier, :supplier_contact, :unit_price, :purchase_price, :purchase_date, :expiry_date, :quantity, :user_id);
+
+-- Get last stock update
+lastStockForProduct:
+SELECT * FROM stocks WHERE product_id = :pid AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1;

@@ -10,8 +10,5 @@ data class Stock(
     val purchaseDate: String?,
     val expiryDate: String?,
     val quantity: Int,
-    val createdAt: String,
-    val updatedAt: String,
-    val deletedAt: String? = null,
     val userId: String? = null
 )

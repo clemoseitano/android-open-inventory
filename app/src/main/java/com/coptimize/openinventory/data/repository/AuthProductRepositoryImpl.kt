@@ -5,7 +5,10 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.coptimize.openinventory.data.auth.AuthDb // Import AuthDb
 import com.coptimize.openinventory.data.auth.Products
 import com.coptimize.openinventory.data.auth.SelectDeleted
+import com.coptimize.openinventory.data.auth.Stocks
 import com.coptimize.openinventory.data.model.Product
+import com.coptimize.openinventory.data.model.Stock
+import com.coptimize.openinventory.ui.formatAsDateForDatabaseQuery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -60,6 +63,21 @@ class AuthProductRepositoryImpl @Inject constructor(
         }
     }
 
+    fun toDomain(stock: Stocks): Stock {
+        return Stock(
+            id = stock.id,
+            productId = stock.product_id.toString(),
+            supplier = stock.supplier,
+            supplierContact = stock.supplier_contact,
+            purchasePrice = stock.purchase_price,
+            purchaseDate = stock.purchase_date,
+            expiryDate = stock.expiry_date,
+            quantity = stock.quantity.toInt(),
+            userId = stock.user_id,
+            unitPrice = stock.unit_price,
+        )
+    }
+
 
     override fun getAllActiveProducts(): Flow<List<Product>> {
         return db.productQueries.selectAllActive()
@@ -85,7 +103,16 @@ class AuthProductRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun addProduct(product: Product) {
+    override suspend fun getLastStockForProduct(productId: String): Stock? {
+        return withContext(Dispatchers.IO) {
+            // The query name is the same, but it's called on the AuthDb instance.
+            val stock = db.stockQueries.lastStockForProduct(pid = productId.toLong()).executeAsOneOrNull()
+
+            stock?.let { toDomain(stock) }
+        }
+    }
+
+    override suspend fun addProduct(product: Product): String {
         requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
         db.productQueries.insert(
             name = product.name,
@@ -99,23 +126,51 @@ class AuthProductRepositoryImpl @Inject constructor(
             image_path = product.imagePath,
             user_id = product.userId
         )
+        return  db.productQueries.getLastCreatedId().executeAsOneOrNull()?:""
     }
 
-    override suspend fun updateProduct(product: Product) {
-        requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
-        db.productQueries.update(
-            id = product.id,
-            name = product.name,
-            price = product.price,
-            category = product.category,
-            barcode = product.barcode,
-            manufacturer = product.manufacturer,
-            tax = product.tax,
-            taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
-            imagePath = product.imagePath,
-            userId = product.userId,
-            quantity_change = product.quantity.toLong()
+    override suspend fun addStock(stock: Stock) {
+        db.stockQueries.insert(
+            product_id = stock.productId.toLong(),
+            supplier = stock.supplier,
+            supplier_contact = stock.supplierContact,
+            unit_price = stock.unitPrice,
+            purchase_price = stock.purchasePrice,
+            purchase_date = stock.purchaseDate,
+            expiry_date = stock.expiryDate,
+            quantity = stock.quantity.toLong(),
+            user_id = stock.userId
         )
+    }
+
+    override suspend fun updateProductAndStock(product: Product, stock: Stock) {
+        requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
+        db.transaction {
+            db.productQueries.update(
+                id = product.id,
+                name = product.name,
+                price = product.price,
+                category = product.category,
+                barcode = product.barcode,
+                manufacturer = product.manufacturer,
+                tax = product.tax,
+                taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
+                imagePath = product.imagePath,
+                userId = product.userId,
+                quantity_change = stock.quantity.toLong()
+            )
+            db.stockQueries.insert(
+                product_id = stock.productId.toLong(),
+                supplier = stock.supplier,
+                supplier_contact = stock.supplierContact,
+                unit_price = stock.unitPrice,
+                purchase_price = stock.purchasePrice,
+                purchase_date = stock.purchaseDate,
+                expiry_date = stock.expiryDate,
+                quantity = stock.quantity.toLong(),
+                user_id = stock.userId
+            )
+        }
     }
 
     override suspend fun deleteProduct(productId: String, userId: String?) {

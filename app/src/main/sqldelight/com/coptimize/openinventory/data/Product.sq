@@ -21,6 +21,10 @@ VALUES (:name, :category, :manufacturer, :barcode, :price, :tax, :tax_is_flat_ra
 selectById:
 SELECT * FROM products WHERE id = :productId;
 
+-- Get recently created product; workaround for custom ids
+getLastCreatedId:
+SELECT id FROM products ORDER BY created_at DESC LIMIT 1;
+
 -- Soft delete a product
 softDelete:
 UPDATE products SET deleted_at = CURRENT_TIMESTAMP WHERE id = :productId;

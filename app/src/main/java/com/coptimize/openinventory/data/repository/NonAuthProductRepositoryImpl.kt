@@ -5,7 +5,9 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.coptimize.openinventory.data.NonAuthDb
 import com.coptimize.openinventory.data.Products
 import com.coptimize.openinventory.data.SelectDeleted
+import com.coptimize.openinventory.data.Stocks
 import com.coptimize.openinventory.data.model.Product
+import com.coptimize.openinventory.data.model.Stock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -59,6 +61,21 @@ class NonAuthProductRepositoryImpl @Inject constructor(
         }
     }
 
+    fun toDomain(stock: Stocks): Stock {
+        return Stock(
+            id = stock.id,
+            productId = stock.product_id.toString(),
+            supplier = stock.supplier,
+            supplierContact = stock.supplier_contact,
+            purchasePrice = stock.purchase_price,
+            purchaseDate = stock.purchase_date,
+            expiryDate = stock.expiry_date,
+            quantity = stock.quantity.toInt(),
+            userId = null,
+            unitPrice = stock.unit_price,
+        )
+    }
+
     override fun getAllActiveProducts(): Flow<List<Product>> {
         return db.productQueries.selectAllActive()
             .asFlow()
@@ -83,7 +100,16 @@ class NonAuthProductRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun addProduct(product: Product) {
+    override suspend fun getLastStockForProduct(productId: String): Stock? {
+        return withContext(Dispatchers.IO) {
+            // The query name is the same, but it's called on the AuthDb instance.
+            val stock = db.stockQueries.lastStockForProduct(pid = productId.toLong()).executeAsOneOrNull()
+
+            stock?.let { toDomain(stock) }
+        }
+    }
+
+    override suspend fun addProduct(product: Product): String {
         db.productQueries.insert(
             name = product.name,
             price = product.price,
@@ -95,21 +121,48 @@ class NonAuthProductRepositoryImpl @Inject constructor(
             tax = product.tax,
             tax_is_flat_rate = if (product.isTaxFlatRate) 1L else 0L
         )
+        return  db.productQueries.getLastCreatedId().executeAsOneOrNull()?:""
     }
 
-    override suspend fun updateProduct(product: Product) {
-        db.productQueries.update(
-            id = product.id,
-            name = product.name,
-            price = product.price,
-            category = product.category,
-            barcode = product.barcode,
-            manufacturer = product.manufacturer,
-            tax = product.tax,
-            taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
-            imagePath = product.imagePath,
-            quantity_change = product.quantity.toLong()
+    override suspend fun addStock(stock: Stock) {
+        db.stockQueries.insert(
+            product_id = stock.productId.toLong(),
+            supplier = stock.supplier,
+            supplier_contact = stock.supplierContact,
+            unit_price = stock.unitPrice,
+            purchase_price = stock.purchasePrice,
+            purchase_date = stock.purchaseDate,
+            expiry_date = stock.expiryDate,
+            quantity = stock.quantity.toLong(),
         )
+    }
+
+    override suspend fun updateProductAndStock(product: Product, stock: Stock) {
+        requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
+        db.transaction {
+            db.productQueries.update(
+                id = product.id,
+                name = product.name,
+                price = product.price,
+                category = product.category,
+                barcode = product.barcode,
+                manufacturer = product.manufacturer,
+                tax = product.tax,
+                taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
+                imagePath = product.imagePath,
+                quantity_change = stock.quantity.toLong()
+            )
+            db.stockQueries.insert(
+                product_id = stock.productId.toLong(),
+                supplier = stock.supplier,
+                supplier_contact = stock.supplierContact,
+                unit_price = stock.unitPrice,
+                purchase_price = stock.purchasePrice,
+                purchase_date = stock.purchaseDate,
+                expiry_date = stock.expiryDate,
+                quantity = stock.quantity.toLong(),
+            )
+        }
     }
 
     override suspend fun deleteProduct(productId: String, userId: String?) {
