@@ -12,6 +12,8 @@ data class Product(
     val isTaxFlatRate: Boolean,
     val quantity: Int,
     val imagePath: String?,
+    val section: String?,
+    val shelf: String?,
     val createdAt: String?=null,
     val updatedAt: String?=null,
     val deletedAt: String?=null,

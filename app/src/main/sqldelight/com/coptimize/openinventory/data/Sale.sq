@@ -10,6 +10,10 @@ insert:
 INSERT INTO sales (customer_id, subtotal, tax, total, paid_amount, change_amount, discount)
 VALUES (:customer_id, :subtotal, :tax, :total, :paid_amount, :change_amount, :discount);
 
+-- Get recently created sale; workaround for custom ids
+getLastCreatedId:
+SELECT id FROM sales ORDER BY created_at DESC LIMIT 1;
+
 -- This query joins sales, sale_items, products, and customers.
 -- It aggregates the sale items for each sale into a single string.
 getSalesWithItemsInRange:

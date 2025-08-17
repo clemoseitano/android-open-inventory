@@ -14,8 +14,8 @@ ORDER BY name;
 
 -- Insert a new product (with user_id)
 insert:
-INSERT INTO products (name, category, manufacturer, barcode, price, tax, tax_is_flat_rate, quantity, image_path, user_id)
-VALUES (:name, :category, :manufacturer, :barcode, :price, :tax, :tax_is_flat_rate, :quantity, :image_path, :user_id);
+INSERT INTO products (name, category, manufacturer, barcode, price, tax, tax_is_flat_rate, quantity, image_path, section, shelf, user_id)
+VALUES (:name, :category, :manufacturer, :barcode, :price, :tax, :tax_is_flat_rate, :quantity, :image_path, :section, :shelf, :user_id);
 
 -- Get a specific product by its ID
 selectById:
@@ -49,5 +49,7 @@ SET name = :name,
     tax_is_flat_rate = :taxIsFlatRate,
     quantity = quantity + :quantity_change, -- Use a distinct parameter name
     image_path = :imagePath,
+    section = :section,
+    shelf = :shelf,
     user_id = :userId
 WHERE id = :id;

@@ -1,0 +1,17 @@
+-- Insert a new customer.
+insert:
+INSERT INTO customers (name, contact, payment_method)
+VALUES (:name, :contact, :payment_method);
+
+-- Update a customer.
+update:
+UPDATE customers SET name=:name, contact=:contact, payment_method=:payment_method
+WHERE id=:id;
+
+-- Get recently created customer; workaround for custom ids
+getLastCreatedId:
+SELECT id FROM customers ORDER BY created_at DESC LIMIT 1;
+
+-- Get a customer by id
+fetch:
+SELECT * FROM customers WHERE id=:id;

@@ -174,6 +174,8 @@ class ProductEditViewModel @Inject constructor(
                 isTaxFlatRate = currentState.isTaxFlatRate,
                 imagePath = currentState.imagePath.takeIf { it.isNotBlank() },
                 deletedAt = if (currentState.isArchived) "archived" else null, // Example
+                shelf = currentState.shelfAisle.takeIf { it.isNotBlank() },
+                section = currentState.storeSection.takeIf { it.isNotBlank() },
                 userId = currentUserId
             )
 

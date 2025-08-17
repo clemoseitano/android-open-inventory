@@ -32,6 +32,8 @@ class NonAuthProductRepositoryImpl @Inject constructor(
                     isTaxFlatRate = t.tax_is_flat_rate == 1L,
                     quantity = t.quantity.toInt(),
                     imagePath = t.image_path,
+                    section = t.section,
+                    shelf = t.shelf,
                     userId = null,
                     createdAt = t.created_at,
                     updatedAt = t.updated_at,
@@ -50,6 +52,8 @@ class NonAuthProductRepositoryImpl @Inject constructor(
                     isTaxFlatRate = t.tax_is_flat_rate == 1L,
                     quantity = t.quantity.toInt(),
                     imagePath = t.image_path,
+                    section = t.section,
+                    shelf = t.shelf,
                     userId = null,
                     createdAt = t.created_at,
                     updatedAt = t.updated_at,
@@ -150,6 +154,8 @@ class NonAuthProductRepositoryImpl @Inject constructor(
                 tax = product.tax,
                 taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
                 imagePath = product.imagePath,
+                section = product.section,
+                shelf = product.shelf,
                 quantity_change = stock.quantity.toLong()
             )
             db.stockQueries.insert(

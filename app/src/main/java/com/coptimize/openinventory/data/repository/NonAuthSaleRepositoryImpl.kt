@@ -59,7 +59,7 @@ class NonAuthSaleRepositoryImpl @Inject constructor(
     override suspend fun recordSale(cart: Cart, customerId: String?, userId: String?): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
-                val newSaleId = UUID.randomUUID().toString()
+                var newSaleId = ""
 
                 db.transaction {
                     // Step 1: Validate stock (no change here)
@@ -80,7 +80,7 @@ class NonAuthSaleRepositoryImpl @Inject constructor(
                         paid_amount = cart.paidAmount,
                         change_amount = cart.changeAmount,
                     )
-
+                    newSaleId =  db.saleQueries.getLastCreatedId().executeAsOneOrNull()?:""
                     // Step 3: Insert sale items and decrement stock (no change here)
                     cart.items.forEach { cartItem ->
                         db.saleItemQueries.insert(

@@ -8,3 +8,17 @@ updateStatus:
 UPDATE saved_carts
 SET status = :status
 WHERE id = :id;
+
+
+-- New query to select all carts that are not completed or cancelled
+selectActive:
+SELECT * FROM saved_carts
+WHERE status IN ('active', 'pending')
+ORDER BY created_at DESC;
+
+-- New query to update the items and customer of an existing saved cart
+update:
+UPDATE saved_carts
+SET items = :items,
+    customer_id = :customer_id
+WHERE id = :id;

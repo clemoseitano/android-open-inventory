@@ -60,8 +60,7 @@ class AuthSaleRepositoryImpl @Inject constructor(
 
         return withContext(Dispatchers.IO) {
             try {
-                val newSaleId = UUID.randomUUID().toString()
-
+                var newSaleId = ""
                 db.transaction {
                     // Step 1: Validate stock (no change here)
                     cart.items.forEach { cartItem ->
@@ -82,7 +81,7 @@ class AuthSaleRepositoryImpl @Inject constructor(
                         change_amount = cart.changeAmount,
                         user_id = userId,
                     )
-
+                    newSaleId =  db.saleQueries.getLastCreatedId().executeAsOneOrNull()?:""
                     // Step 3: Insert sale items and decrement stock (no change here)
                     cart.items.forEach { cartItem ->
                         db.saleItemQueries.insert(

@@ -6,9 +6,12 @@ import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.coptimize.openinventory.data.NonAuthDb
 import com.coptimize.openinventory.data.ProductQueries
 import com.coptimize.openinventory.data.auth.AuthDb
+import com.coptimize.openinventory.data.repository.AuthCustomerRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthProductRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthSaleRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthSavedCartRepositoryImpl
+import com.coptimize.openinventory.data.repository.CustomerRepository
+import com.coptimize.openinventory.data.repository.NonAuthCustomerRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthSavedCartRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthProductRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthSaleRepositoryImpl
@@ -173,6 +176,9 @@ object DatabaseModule {
         return db.saleItemQueries
     }
 
+    @Provides @Singleton fun provideCustomerQueries(db: NonAuthDb) = db.customerQueries
+    @Provides @Singleton fun provideAuthCustomerQueries(db: AuthDb) = db.customerQueries
+
     @Provides
     @Singleton
     fun provideSaleRepository(
@@ -200,6 +206,20 @@ object DatabaseModule {
         } else {
             // You need to create this NonAuthSavedCartRepositoryImpl class
             NonAuthSavedCartRepositoryImpl(nonAuthDb)
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideCustomerRepository(
+        @ApplicationContext context: Context,
+        nonAuthDb: NonAuthDb,
+        authDb: AuthDb
+    ): CustomerRepository {
+        return if (isAuthMode(context)) {
+            AuthCustomerRepositoryImpl(authDb)
+        } else {
+            NonAuthCustomerRepositoryImpl(nonAuthDb)
         }
     }
 }

@@ -34,6 +34,8 @@ class AuthProductRepositoryImpl @Inject constructor(
                     isTaxFlatRate = t.tax_is_flat_rate == 1L,
                     quantity = t.quantity.toInt(),
                     imagePath = t.image_path,
+                    section = t.section,
+                    shelf = t.shelf,
                     userId = t.user_id,
                     createdAt = t.created_at,
                     updatedAt = t.updated_at,
@@ -52,6 +54,8 @@ class AuthProductRepositoryImpl @Inject constructor(
                     isTaxFlatRate = t.tax_is_flat_rate == 1L,
                     quantity = t.quantity.toInt(),
                     imagePath = t.image_path,
+                    section = t.section,
+                    shelf = t.shelf,
                     userId = t.user_id,
                     createdAt = t.created_at,
                     updatedAt = t.updated_at,
@@ -124,6 +128,8 @@ class AuthProductRepositoryImpl @Inject constructor(
             tax = product.tax,
             tax_is_flat_rate = if (product.isTaxFlatRate) 1L else 0L,
             image_path = product.imagePath,
+            section = product.section,
+            shelf = product.shelf,
             user_id = product.userId
         )
         return  db.productQueries.getLastCreatedId().executeAsOneOrNull()?:""
@@ -157,6 +163,8 @@ class AuthProductRepositoryImpl @Inject constructor(
                 taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
                 imagePath = product.imagePath,
                 userId = product.userId,
+                section = product.section,
+                shelf = product.shelf,
                 quantity_change = stock.quantity.toLong()
             )
             db.stockQueries.insert(
