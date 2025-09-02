@@ -6,6 +6,8 @@ import java.util.Date
 import java.util.GregorianCalendar
 import java.util.Locale
 import java.util.TimeZone
+import java.security.MessageDigest
+import java.nio.charset.StandardCharsets
 
 fun stringToDate(dateString: String): Date{
     val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -69,4 +71,32 @@ fun Long.formatAsDateForDatabaseQuery(): String {
     val date = Date(this)
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     return sdf.format(date)
+}
+
+
+/**
+ * Hashes a password string using the SHA-256 algorithm and returns the hex representation.
+ * This is the direct equivalent of the Qt QCryptographicHash::hash(..., Sha256).toHex() code.
+ *
+ * @param password The raw password string to hash.
+ * @return The SHA-256 hash of the password, encoded as a lowercase hexadecimal string.
+ */
+fun hashPasswordSha256(password: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val passwordBytes = password.toByteArray(StandardCharsets.UTF_8)
+    val hashedBytes = digest.digest(passwordBytes)
+    return bytesToHex(hashedBytes)
+}
+
+/**
+ * Helper function to convert a ByteArray to a hexadecimal string.
+ */
+private fun bytesToHex(bytes: ByteArray): String {
+    val hexChars = CharArray(bytes.size * 2)
+    for (j in bytes.indices) {
+        val v = bytes[j].toInt() and 0xFF
+        hexChars[j * 2] = "0123456789abcdef"[v ushr 4]
+        hexChars[j * 2 + 1] = "0123456789abcdef"[v and 0x0F]
+    }
+    return String(hexChars)
 }

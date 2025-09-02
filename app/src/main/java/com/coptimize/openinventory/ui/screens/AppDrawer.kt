@@ -7,14 +7,16 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.coptimize.openinventory.navigation.Screen
 
-// A data class to represent each item in our drawer
+// DrawerItem data class is unchanged
 data class DrawerItem(
     val screen: Screen,
     val title: String,
@@ -24,18 +26,26 @@ data class DrawerItem(
 @Composable
 fun AppDrawerContent(
     navController: NavController,
-    closeDrawer: () -> Unit
+    closeDrawer: () -> Unit,
+    viewModel: DrawerViewModel = hiltViewModel() // Inject the new ViewModel
 ) {
-    // List of all screens we want to show in the drawer
-    val drawerItems = listOf(
-        DrawerItem(Screen.MainSale, "Point of Sale", Icons.Default.PointOfSale),
-        DrawerItem(Screen.ProductManagement, "Product Management", Icons.Default.Inventory),
-        DrawerItem(Screen.SalesReport, "Sales Report", Icons.Default.Assessment),
-        DrawerItem(Screen.UserManagement, "Manage Users", Icons.Default.People),
-        DrawerItem(Screen.Settings, "Settings", Icons.Default.Settings)
-    )
+    // Build the list of drawer items dynamically based on the auth mode.
+    val drawerItems = remember(viewModel.isAuthModeEnabled) {
+        val allItems = mutableListOf(
+            DrawerItem(Screen.MainSale, "Point of Sale", Icons.Default.PointOfSale),
+            DrawerItem(Screen.ProductManagement, "Product Management", Icons.Default.Inventory),
+            DrawerItem(Screen.SalesReport, "Sales Report", Icons.Default.Assessment)
+        )
+        // Conditionally add the "Manage Users" item
+        if (viewModel.isAuthModeEnabled) {
+            allItems.add(DrawerItem(Screen.UserManagement, "Manage Users", Icons.Default.People))
+        }
+        // Settings is always available
+        allItems.add(DrawerItem(Screen.Settings, "Settings", Icons.Default.Settings))
 
-    // Get the current route to highlight the selected item
+        allItems.toList() // Return an immutable list
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -54,9 +64,7 @@ fun AppDrawerContent(
                     label = { Text(item.title) },
                     selected = currentRoute == item.screen.route,
                     onClick = {
-                        // Navigate to the screen and then close the drawer
                         navController.navigate(item.screen.route) {
-                            // Avoid building up a large back stack
                             launchSingleTop = true
                         }
                         closeDrawer()

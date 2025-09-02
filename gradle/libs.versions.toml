@@ -24,6 +24,7 @@ sqldelight = "2.1.0"
 kotlinxSerialization = "1.9.0"
 coil = "3.2.0"
 zxingEmbedded = "4.3.0"
+frameworkSqlite = "2.6.0-rc01"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -57,6 +58,7 @@ sqldelight-coroutines-extensions = { group = "app.cash.sqldelight", name = "coro
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+sqlite-framework-android = { group = "androidx.sqlite", name = "sqlite-framework", version.ref = "frameworkSqlite" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

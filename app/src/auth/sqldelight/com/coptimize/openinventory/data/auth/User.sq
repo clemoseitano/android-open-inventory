@@ -1,0 +1,40 @@
+-- Select all non-deleted users
+selectAll:
+SELECT *
+FROM users
+WHERE deleted_at IS NULL
+ORDER BY username;
+
+-- Soft delete a user by setting the deleted_at timestamp
+softDelete:
+UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = :userId;
+
+-- Update a user by setting the last_login timestamp
+updateLastLogin:
+UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = :userId;
+
+-- Get a single user by their ID
+selectById:
+SELECT * FROM users WHERE id = :userId;
+
+-- Get a single user by their ID
+selectForLogin:
+SELECT password_hash, id FROM users WHERE username = :username;
+
+-- Insert a new user
+insert:
+INSERT INTO users (username, password_hash, role)
+VALUES (:username, :password_hash, :role);
+
+-- Update an existing user's details
+update:
+UPDATE users
+SET username = :username,
+    role = :role
+WHERE id = :id;
+
+-- Update a user's password (separate for security)
+updatePassword:
+UPDATE users
+SET password_hash = :password_hash
+WHERE id = :id;

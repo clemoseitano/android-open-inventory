@@ -123,7 +123,9 @@ class NonAuthProductRepositoryImpl @Inject constructor(
             image_path = product.imagePath,
             manufacturer = product.manufacturer,
             tax = product.tax,
-            tax_is_flat_rate = if (product.isTaxFlatRate) 1L else 0L
+            tax_is_flat_rate = if (product.isTaxFlatRate) 1L else 0L,
+            section = product.section,
+            shelf = product.shelf
         )
         return  db.productQueries.getLastCreatedId().executeAsOneOrNull()?:""
     }
