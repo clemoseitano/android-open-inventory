@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.coptimize.openinventory.ui.AppRestartUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +35,7 @@ fun SetupScreen(
             title = { Text("Setup Successful") },
             text = { Text("Security has been enabled. The app will now close. Please reopen it to log in.") },
             confirmButton = {
-                TextButton(onClick = { context.finish() }) { Text("OK") }
+                TextButton(onClick = { AppRestartUtil.restartApp(context) }) { Text("OK") }
             }
         )
     }

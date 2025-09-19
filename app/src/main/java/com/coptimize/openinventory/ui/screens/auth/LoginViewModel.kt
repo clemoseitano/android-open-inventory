@@ -3,6 +3,7 @@ package com.coptimize.openinventory.ui.screens.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.coptimize.openinventory.data.repository.UserRepository
+import com.coptimize.openinventory.data.repository.UserSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +21,8 @@ data class LoginUiState(
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val userSessionRepository: UserSessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -45,7 +47,7 @@ class LoginViewModel @Inject constructor(
 
             result.fold(
                 onSuccess = {
-                    // In a real app, you would save the user session here
+                    userSessionRepository.startSession(result.getOrNull()!!)
                     _uiState.update { it.copy(isLoading = false, loginSuccess = true) }
                 },
                 onFailure = { exception ->

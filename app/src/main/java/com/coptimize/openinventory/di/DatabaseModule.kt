@@ -4,7 +4,6 @@ import android.content.Context
 import com.coptimize.openinventory.data.DatabaseManager
 import com.coptimize.openinventory.data.NonAuthDb
 import com.coptimize.openinventory.data.PreferenceManager
-import com.coptimize.openinventory.data.ProductQueries
 import com.coptimize.openinventory.data.auth.AuthDb
 import com.coptimize.openinventory.data.model.User
 import com.coptimize.openinventory.data.repository.AppSetupRepository
@@ -36,16 +35,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    @Provides
-    fun provideNonAuthDatabase(databaseManager: DatabaseManager): NonAuthDb {
-        return databaseManager.getNonAuthDb()
-    }
-
-    @Provides
-    fun provideAuthDatabase(databaseManager: DatabaseManager): AuthDb {
-        return databaseManager.getAuthDb()
-    }
-
     @Provides
     @Singleton
     fun provideProductRepository(dbManager: DatabaseManager): ProductRepository {
@@ -144,52 +133,9 @@ object DatabaseModule {
         return MigrationRepositoryImpl(context=context, preferenceManager=preferenceManager, databaseManager=databaseManager)
     }
 
-    @Provides @Singleton fun provideAuthUserQueries(db: AuthDb) = db.userQueries
-
     @Provides
     @Singleton
     fun provideAppSetupRepository(preferenceManager: PreferenceManager): AppSetupRepository {
         return AppSetupRepositoryImpl(preferenceManager)
     }
-
-    @Provides
-    @Singleton
-    fun provideProductQueries(db: NonAuthDb): ProductQueries {
-        return db.productQueries
-    }
-
-    // Auth DB Queries
-    @Provides
-    @Singleton
-    fun provideAuthProductQueries(db: AuthDb): com.coptimize.openinventory.data.auth.ProductQueries {
-        return db.productQueries
-    }
-
-    @Provides
-    @Singleton
-    fun provideSaleQueries(db: NonAuthDb): com.coptimize.openinventory.data.SaleQueries {
-        return db.saleQueries
-    }
-
-    @Provides
-    @Singleton
-    fun provideSaleItemQueries(db: NonAuthDb): com.coptimize.openinventory.data.SaleItemQueries {
-        return db.saleItemQueries
-    }
-
-    // Auth DB Queries
-    @Provides
-    @Singleton
-    fun provideAuthSaleQueries(db: AuthDb): com.coptimize.openinventory.data.auth.SaleQueries {
-        return db.saleQueries
-    }
-
-    @Provides
-    @Singleton
-    fun provideAuthSaleItemQueries(db: AuthDb): com.coptimize.openinventory.data.auth.SaleItemQueries {
-        return db.saleItemQueries
-    }
-
-    @Provides @Singleton fun provideCustomerQueries(db: NonAuthDb) = db.customerQueries
-    @Provides @Singleton fun provideAuthCustomerQueries(db: AuthDb) = db.customerQueries
 }

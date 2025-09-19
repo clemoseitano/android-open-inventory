@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.coptimize.openinventory.data.model.Product
 import com.coptimize.openinventory.data.model.Stock
 import com.coptimize.openinventory.data.repository.ProductRepository
+import com.coptimize.openinventory.data.repository.UserSessionRepository
 import com.coptimize.openinventory.ui.formatAsDateForDatabaseQuery
 import com.coptimize.openinventory.ui.formatDateForDisplay
 import com.coptimize.openinventory.ui.stringToDate
@@ -66,6 +67,7 @@ data class ProductEditUiState(
 @HiltViewModel
 class ProductEditViewModel @Inject constructor(
     private val productRepository: ProductRepository,
+    private val userSessionRepository: UserSessionRepository,
     savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -159,7 +161,7 @@ class ProductEditViewModel @Inject constructor(
             var finalProductId = if (isNewProduct) "" else productId!!
 
             // In a real app, get this from a UserSession repository
-            val currentUserId = "placeholder-user-id"
+            val currentUserId = userSessionRepository.getCurrentUserId()
 
             // 1. Create the Product and Stock objects to save/update
             val productToSave = Product(

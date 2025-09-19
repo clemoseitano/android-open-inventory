@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.coptimize.openinventory.data.model.Product
 import com.coptimize.openinventory.data.repository.ProductRepository
+import com.coptimize.openinventory.data.repository.UserSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProductManagementViewModel @Inject constructor(
-    private val productRepository: ProductRepository // Hilt provides this automatically
-    // Inject other repositories like CartRepository here later
+    private val productRepository: ProductRepository,
+    private val userSessionRepository: UserSessionRepository
 ) : ViewModel() {
 
     // This converts the Flow from the repository into a StateFlow that the UI can collect.
@@ -38,11 +39,8 @@ class ProductManagementViewModel @Inject constructor(
      * This function should be called from the UI.
      */
     fun restoreProduct(product: Product) {
-        // Launch a coroutine in the ViewModel's scope to perform the database operation.
         viewModelScope.launch {
-            // In a real app, you would get the current user's ID from a session manager.
-            // For now, we can use a placeholder or the ID from the product object if available.
-            val currentUserId = "placeholder-user-id" // Replace with actual session logic
+            val currentUserId = userSessionRepository.getCurrentUserId()
             productRepository.restoreProduct(
                 productId = product.id,
                 userId = currentUserId
@@ -55,7 +53,7 @@ class ProductManagementViewModel @Inject constructor(
      */
     fun deleteProduct(product: Product) {
         viewModelScope.launch {
-            val currentUserId = "placeholder-user-id" // Replace with actual session logic
+            val currentUserId = userSessionRepository.getCurrentUserId()
 
             productRepository.deleteProduct(
                 productId = product.id,

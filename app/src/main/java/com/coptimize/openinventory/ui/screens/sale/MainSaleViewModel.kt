@@ -10,6 +10,7 @@ import com.coptimize.openinventory.data.repository.CustomerRepository
 import com.coptimize.openinventory.data.repository.ProductRepository
 import com.coptimize.openinventory.data.repository.SaleRepository
 import com.coptimize.openinventory.data.repository.SavedCartRepository
+import com.coptimize.openinventory.data.repository.UserSessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -62,6 +63,7 @@ class MainSaleViewModel @Inject constructor(
     private val saleRepository: SaleRepository,
     private val savedCartRepository: SavedCartRepository,
     private val customerRepository: CustomerRepository,
+    private val userSessionRepository: UserSessionRepository,
     // The CartRepository is made public so the UI can collect its state flows directly.
     val cartRepository: CartRepository
 ) : ViewModel() {
@@ -170,7 +172,7 @@ class MainSaleViewModel @Inject constructor(
                 customerRepository.updateCustomer(customerName, customerContact, paymentMethod, customerId)
             }
             val currentCartId = _activeSavedCartId.value
-            val userId = "placeholder-user-id"
+            val userId = userSessionRepository.getCurrentUserId()
 
             if (currentCartId != null) {
                 // UPDATE existing saved cart
@@ -224,7 +226,7 @@ class MainSaleViewModel @Inject constructor(
 
     fun onCancelCart(cartId: String) {
         viewModelScope.launch {
-            savedCartRepository.updateCartStatus(cartId, "cancelled", "placeholder-user-id")
+            savedCartRepository.updateCartStatus(cartId, "cancelled", userSessionRepository.getCurrentUserId())
         }
     }
 
@@ -262,7 +264,7 @@ class MainSaleViewModel @Inject constructor(
             _lowStockProducts.value = lowStock
 
             // Record the sale
-            val result = saleRepository.recordSale(cartSnapshot, customerId, "placeholder-user-id")
+            val result = saleRepository.recordSale(cartSnapshot, customerId, userSessionRepository.getCurrentUserId())
             result.fold(
                 onSuccess = { saleId ->
                     _saleCompletionState.value =
@@ -272,7 +274,7 @@ class MainSaleViewModel @Inject constructor(
                         savedCartRepository.updateCartStatus(
                             cartId,
                             "completed",
-                            "placeholder-user-id"
+                            userSessionRepository.getCurrentUserId()
                         )
                     }
                     clearCartAndCustomerInfo()
