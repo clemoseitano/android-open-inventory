@@ -30,7 +30,10 @@ fun UserManagementScreen(
     val users by viewModel.users.collectAsStateWithLifecycle()
     var userToDelete by remember { mutableStateOf<User?>(null) }
 
-    // --- Confirmation Dialog for Deletion ---
+    // Get the current user's ID from the ViewModel
+    val currentUserId = viewModel.currentUserId
+
+    // --- Confirmation Dialog for Deletion (Unchanged) ---
     if (userToDelete != null) {
         AlertDialog(
             onDismissRequest = { userToDelete = null },
@@ -42,14 +45,10 @@ fun UserManagementScreen(
                         viewModel.deleteUser(userToDelete!!.id)
                         userToDelete = null
                     }
-                ) {
-                    Text("Remove")
-                }
+                ) { Text("Remove") }
             },
             dismissButton = {
-                TextButton(onClick = { userToDelete = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { userToDelete = null }) { Text("Cancel") }
             }
         )
     }
@@ -91,8 +90,10 @@ fun UserManagementScreen(
                 items(users, key = { it.id }) { user ->
                     UserListItem(
                         user = user,
-                        onDeleteClick = { userToDelete = user }, // Set the user to be deleted
-                        navController = navController
+                        // Pass the current user's ID to the list item
+                        currentUserId = currentUserId,
+                        onDeleteClick = { userToDelete = user },
+                        onEditClick = { navController.navigate(Screen.UserEdit.createRoute(user.id)) }
                     )
                 }
             }
@@ -101,21 +102,32 @@ fun UserManagementScreen(
 }
 
 @Composable
-fun UserListItem(user: User, onDeleteClick: () -> Unit, navController: NavController) {
+fun UserListItem(
+    user: User,
+    currentUserId: String?,
+    onDeleteClick: () -> Unit,
+    onEditClick: () -> Unit,
+) {
+    val isCurrentUser = user.id == currentUserId
+
     Card {
         ListItem(
             headlineContent = { Text(user.username, fontWeight = FontWeight.Bold) },
-            supportingContent = { Text("Role: ${user.role.capitalize()}") },
+            supportingContent = { Text("Role: ${user.role.replaceFirstChar { it.uppercase() }}") },
             trailingContent = {
                 Row {
-                    IconButton(onClick = {
-                        // Navigate to edit screen with the user's ID
-                        navController.navigate(Screen.UserEdit.createRoute(user.id))
-                    }) {
+                    IconButton(onClick = onEditClick) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit User")
                     }
-                    IconButton(onClick = onDeleteClick) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remove User")
+                    IconButton(
+                        onClick = onDeleteClick,
+                        enabled = !isCurrentUser
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Remove User",
+                            tint = if (isCurrentUser) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else LocalContentColor.current
+                        )
                     }
                 }
             }
