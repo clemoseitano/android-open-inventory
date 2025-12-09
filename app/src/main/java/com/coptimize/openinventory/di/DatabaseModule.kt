@@ -9,6 +9,7 @@ import com.coptimize.openinventory.data.model.User
 import com.coptimize.openinventory.data.repository.AppSetupRepository
 import com.coptimize.openinventory.data.repository.AppSetupRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthCustomerRepositoryImpl
+import com.coptimize.openinventory.data.repository.AuthProductDiscoveryRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthProductRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthSaleRepositoryImpl
 import com.coptimize.openinventory.data.repository.AuthSavedCartRepositoryImpl
@@ -17,12 +18,16 @@ import com.coptimize.openinventory.data.repository.CustomerRepository
 import com.coptimize.openinventory.data.repository.MigrationRepository
 import com.coptimize.openinventory.data.repository.MigrationRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthCustomerRepositoryImpl
+import com.coptimize.openinventory.data.repository.NonAuthProductDiscoveryRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthProductRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthSaleRepositoryImpl
 import com.coptimize.openinventory.data.repository.NonAuthSavedCartRepositoryImpl
+import com.coptimize.openinventory.data.repository.ProductDiscoveryRepository
 import com.coptimize.openinventory.data.repository.ProductRepository
 import com.coptimize.openinventory.data.repository.SaleRepository
 import com.coptimize.openinventory.data.repository.SavedCartRepository
+import com.coptimize.openinventory.data.repository.SettingsRepository
+import com.coptimize.openinventory.data.repository.SettingsRepositoryImpl
 import com.coptimize.openinventory.data.repository.UserRepository
 import dagger.Module
 import dagger.Provides
@@ -137,5 +142,22 @@ object DatabaseModule {
     @Singleton
     fun provideAppSetupRepository(preferenceManager: PreferenceManager): AppSetupRepository {
         return AppSetupRepositoryImpl(preferenceManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSettingsRepository(preferenceManager: PreferenceManager): SettingsRepository {
+        return SettingsRepositoryImpl(preferenceManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideProductDiscoveryRepository(dbManager: DatabaseManager): ProductDiscoveryRepository {
+        val db = dbManager.getDb()
+        return if (db is AuthDb) {
+            AuthProductDiscoveryRepositoryImpl(db)
+        } else {
+            NonAuthProductDiscoveryRepositoryImpl(db as NonAuthDb)
+        }
     }
 }

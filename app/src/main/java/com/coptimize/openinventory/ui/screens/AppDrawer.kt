@@ -8,19 +8,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.coptimize.openinventory.data.repository.UserSessionRepository
 import com.coptimize.openinventory.navigation.Screen
 
-// DrawerItem data class is unchanged
 data class DrawerItem(
     val screen: Screen,
     val title: String,
@@ -31,10 +27,11 @@ data class DrawerItem(
 fun AppDrawerContent(
     navController: NavController,
     closeDrawer: () -> Unit,
-    viewModel: DrawerViewModel = hiltViewModel()) {
+    viewModel: DrawerViewModel = hiltViewModel()
+) {
     val passwordPromptState by viewModel.passwordPromptState.collectAsState()
 
-    // Show the password prompt dialog based on the ViewModel's state
+    // Show the password prompt dialog
     if (passwordPromptState is PasswordPromptState.Visible || passwordPromptState is PasswordPromptState.Failure) {
         PasswordPromptDialog(
             title = "Admin Access Required",
@@ -49,29 +46,33 @@ fun AppDrawerContent(
             }
         )
     }
-    // Build the list of drawer items dynamically based on the auth mode.
-    val drawerItems = remember(viewModel.currentUserRole, viewModel.isAuthModeEnabled) {
+
+    val drawerItems = remember(viewModel.isAuthModeEnabled, viewModel.currentUserRole) {
         val allItems = mutableListOf(
             DrawerItem(Screen.MainSale, "Point of Sale", Icons.Default.PointOfSale)
         )
 
-        // Product Management / Product List
-        val role = viewModel.currentUserRole
-        if (role == "admin" || role == "superadmin") {
+        if (viewModel.isAuthModeEnabled) {
+            val role = viewModel.currentUserRole
+            if (role == "admin" || role == "superadmin") {
+                allItems.add(DrawerItem(Screen.ProductManagement, "Product Management", Icons.Default.Inventory))
+            } else if (role == "staff") {
+                allItems.add(DrawerItem(Screen.ProductManagement, "Product List", Icons.Default.Inventory))
+            }
+
+            allItems.add(DrawerItem(Screen.SalesReport, "Sales Report", Icons.Default.Assessment))
+
+            if (role == "superadmin") {
+                allItems.add(DrawerItem(Screen.UserManagement, "Manage Users", Icons.Default.People))
+            }
+
+        } else {
+            // In non-auth mode, the user is effectively an admin without a password.
             allItems.add(DrawerItem(Screen.ProductManagement, "Product Management", Icons.Default.Inventory))
-        } else if (role == "staff") {
-            allItems.add(DrawerItem(Screen.ProductManagement, "Product List", Icons.Default.Inventory))
-        }
-
-        allItems.add(DrawerItem(Screen.SalesReport, "Sales Report", Icons.Default.Assessment))
-
-        // User Management is for superadmin only
-        if (role == "superadmin") {
-            allItems.add(DrawerItem(Screen.UserManagement, "Manage Users", Icons.Default.People))
+            allItems.add(DrawerItem(Screen.SalesReport, "Sales Report", Icons.Default.Assessment))
         }
 
         allItems.add(DrawerItem(Screen.Settings, "Settings", Icons.Default.Settings))
-
         allItems.toList()
     }
 
@@ -89,11 +90,12 @@ fun AppDrawerContent(
                     selected = currentRoute == item.screen.route,
                     onClick = {
                         val role = viewModel.currentUserRole
-                        val isSensitive = (item.screen == Screen.ProductManagement && role != "staff") ||
-                                (item.screen == Screen.UserManagement)
+                        // Password prompt for sensitive screens in auth mode
+                        val isSensitive = viewModel.isAuthModeEnabled &&
+                                ((item.screen == Screen.ProductManagement && role != "staff") ||
+                                        (item.screen == Screen.UserManagement))
 
                         if (isSensitive) {
-                            // Trigger the dialog via the ViewModel
                             viewModel.showPasswordPrompt(item.screen)
                         } else {
                             navController.navigate(item.screen.route) { launchSingleTop = true }

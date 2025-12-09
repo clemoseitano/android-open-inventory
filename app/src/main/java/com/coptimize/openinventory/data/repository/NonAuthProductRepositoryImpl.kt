@@ -144,7 +144,6 @@ class NonAuthProductRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateProductAndStock(product: Product, stock: Stock) {
-        requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
         db.transaction {
             db.productQueries.update(
                 id = product.id,
@@ -169,6 +168,25 @@ class NonAuthProductRepositoryImpl @Inject constructor(
                 purchase_date = stock.purchaseDate,
                 expiry_date = stock.expiryDate,
                 quantity = stock.quantity.toLong(),
+            )
+        }
+    }
+
+    override suspend fun updateProduct(product: Product) {
+        db.transaction {
+            db.productQueries.update(
+                id = product.id,
+                name = product.name,
+                price = product.price,
+                category = product.category,
+                barcode = product.barcode,
+                manufacturer = product.manufacturer,
+                tax = product.tax,
+                taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
+                imagePath = product.imagePath,
+                section = product.section,
+                shelf = product.shelf,
+                quantity_change = 0L
             )
         }
     }

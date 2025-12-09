@@ -40,7 +40,7 @@ fun formatDateForDisplay(date: Date, format: String= "MMM dd, yyyy"): String {
 
 fun Long.formatAsDateForDisplay(): String {
     val date = Date(this)
-    var format = "MMM dd, 2027"
+    var format = "MMM dd, yyyy"
 
     val cal: Calendar = GregorianCalendar()
     cal.time = date

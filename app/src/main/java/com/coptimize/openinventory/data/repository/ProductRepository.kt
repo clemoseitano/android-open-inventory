@@ -20,6 +20,8 @@ interface ProductRepository {
 
     suspend fun updateProductAndStock(product: Product, stock: Stock)
 
+    suspend fun updateProduct(product: Product)
+
     suspend fun deleteProduct(productId: String, userId: String? = null) // userId is optional
 
     suspend fun restoreProduct(productId: String, userId: String? = null) // userId is optional

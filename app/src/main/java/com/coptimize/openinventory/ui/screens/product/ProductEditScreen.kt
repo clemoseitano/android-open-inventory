@@ -3,52 +3,66 @@ package com.coptimize.openinventory.ui.screens.product
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.*
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.coptimize.openinventory.ui.formatAsDateForDisplay
-import java.util.Date
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.coptimize.openinventory.ui.formatAsDateForDisplay
+import java.util.Calendar
+import java.util.Date
 
 private enum class DatePickerTarget { PURCHASE, EXPIRY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductEditScreen(
-    // The nav argument should be a String to handle the default "-1" case easily
     productId: String?,
     windowSizeClass: WindowSizeClass,
     onNavigateUp: () -> Unit,
     viewModel: ProductEditViewModel = hiltViewModel()
 ) {
-    val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isHandset = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
+    var showEnrollmentCamera by remember { mutableStateOf(false) }
 
-    // When save is successful, navigate back
+    if (showEnrollmentCamera) {
+        Dialog(
+            onDismissRequest = { showEnrollmentCamera = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false) // Full screen
+        ) {
+            ProductEnrollmentCameraScreen(
+                onDismiss = { showEnrollmentCamera = false },
+                onComplete = { barcode, uris ->
+                    viewModel.onEnrollmentComplete(barcode, uris)
+                    showEnrollmentCamera = false
+                }
+            )
+        }
+    }
+
+
     LaunchedEffect(uiState.isSaveSuccessful) {
         if (uiState.isSaveSuccessful) {
             onNavigateUp()
@@ -61,7 +75,7 @@ fun ProductEditScreen(
                 title = { Text(if (uiState.isExistingProduct) "Edit Product" else "Add Product") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -71,20 +85,39 @@ fun ProductEditScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        }
+        else if (uiState.isAnalyzing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(16.dp))
+                    Text("Analyzing Product Image...")
+                }
+            }
         } else {
+            // Pass the lambda to open the camera screen
+            val openCamera: () -> Unit = { showEnrollmentCamera = true }
+
             if (isHandset) {
                 ProductEditHandsetLayout(
                     modifier = Modifier.padding(paddingValues),
                     uiState = uiState,
                     viewModel = viewModel,
-                    onSave = { viewModel.saveProduct() }
+                    onSave = { viewModel.saveProduct() },
+                    onOpenCamera = openCamera
                 )
             } else {
                 ProductEditTabletLayout(
                     modifier = Modifier.padding(paddingValues),
                     uiState = uiState,
                     viewModel = viewModel,
-                    onSave = { viewModel.saveProduct() }
+                    onSave = { viewModel.saveProduct() },
+                    onOpenCamera = openCamera
                 )
             }
         }
@@ -96,7 +129,8 @@ private fun ProductEditHandsetLayout(
     modifier: Modifier,
     uiState: ProductEditUiState,
     viewModel: ProductEditViewModel,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onOpenCamera: () -> Unit // Receive the lambda
 ) {
     LazyColumn(
         modifier = modifier
@@ -125,6 +159,7 @@ private fun ProductEditHandsetLayout(
                 onPurchaseDateChange = viewModel::onPurchaseDateChange,
                 onExpiryDateChange = viewModel::onExpiryDateChange,
                 onImageSelected = viewModel::onImageSelected,
+                onOpenCamera = onOpenCamera // Pass it down
             )
         }
         item {
@@ -140,7 +175,8 @@ private fun ProductEditTabletLayout(
     modifier: Modifier,
     uiState: ProductEditUiState,
     viewModel: ProductEditViewModel,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onOpenCamera: () -> Unit // Receive the lambda
 ) {
     Row(
         modifier = modifier
@@ -172,6 +208,7 @@ private fun ProductEditTabletLayout(
                     onPurchaseDateChange = viewModel::onPurchaseDateChange,
                     onExpiryDateChange = viewModel::onExpiryDateChange,
                     onImageSelected = viewModel::onImageSelected,
+                    onOpenCamera = onOpenCamera // Pass it down
                 )
             }
             item {
@@ -180,7 +217,6 @@ private fun ProductEditTabletLayout(
                 }
             }
         }
-        // This second pane could have product history, sales stats, etc. in a real app
         Box(modifier = Modifier.weight(1f))
     }
 }
@@ -207,12 +243,28 @@ private fun ProductFormFields(
     onExpiryDateChange: (Date?) -> Unit,
     onArchivedChange: (Boolean) -> Unit,
     onImageSelected: (Uri?) -> Unit,
+    onOpenCamera: () -> Unit // New lambda parameter
 ) {
-    // State to manage the date picker dialog
     var activeDatePicker by remember { mutableStateOf<DatePickerTarget?>(null) }
 
     if (activeDatePicker != null) {
-        val datePickerState = rememberDatePickerState()
+        val datePickerState = if (activeDatePicker == DatePickerTarget.PURCHASE) {
+            // For PURCHASE, create the state WITH the selectableDates constraint.
+            rememberDatePickerState(
+                initialSelectedDateMillis = uiState.purchaseDate.time,
+                selectableDates = object : SelectableDates {
+                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                        // Only allow selection of dates up to and including today.
+                        return utcTimeMillis <= System.currentTimeMillis()
+                    }
+                }
+            )
+        } else {
+            rememberDatePickerState(
+                initialSelectedDateMillis = uiState.expiryDate?.time
+            )
+        }
+
         DatePickerDialog(
             onDismissRequest = { activeDatePicker = null },
             confirmButton = {
@@ -220,69 +272,113 @@ private fun ProductFormFields(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
                             val selectedDate = Date(millis)
-                            when(activeDatePicker) {
+                            when (activeDatePicker) {
                                 DatePickerTarget.PURCHASE -> onPurchaseDateChange(selectedDate)
                                 DatePickerTarget.EXPIRY -> onExpiryDateChange(selectedDate)
-                                else -> {}
+                                null -> {}
                             }
                         }
                         activeDatePicker = null
-                    }
+                    },
+                    enabled = datePickerState.selectedDateMillis != null
                 ) { Text("OK") }
             },
             dismissButton = { TextButton(onClick = { activeDatePicker = null }) { Text("Cancel") } }
         ) {
-            DatePicker(state = datePickerState)
+            DatePicker(
+                state = datePickerState,
+            )
         }
-    }
-    // 1. Create the ActivityResultLauncher.
-    // This launcher asks the system to let the user pick any image.
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        // 3. This block is the callback. It's executed when the user
-        //    either picks an image (uri is not null) or cancels (uri is null).
-        //    We pass the result up to the ViewModel.
-        onImageSelected(uri)
     }
 
     // --- Primary Details ---
     SectionTitle("Item Details")
-    OutlinedTextField(value = uiState.name, onValueChange = onNameChange, label = { Text("Item Name*") }, isError = uiState.nameError != null, supportingText = { if (uiState.nameError != null) Text(uiState.nameError) })
-    OutlinedTextField(value = uiState.barcode, onValueChange = onBarcodeChange, label = { Text("Barcode") })
-    OutlinedTextField(value = uiState.category, onValueChange = onCategoryChange, label = { Text("Category (Item Class)*") })
-    OutlinedTextField(value = uiState.manufacturer, onValueChange = onManufacturerChange, label = { Text("Manufacturer") })
+    OutlinedTextField(value = uiState.name, onValueChange = onNameChange, label = { Text("Item Name*") }, isError = uiState.nameError != null, supportingText = { if (uiState.nameError != null) Text(uiState.nameError) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+    // --- Barcode with Camera Button ---
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = uiState.barcode,
+            onValueChange = onBarcodeChange,
+            label = { Text("Barcode") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onOpenCamera) { // Trigger the camera flow
+            Icon(Icons.Default.CameraAlt, "Scan or Add Photos")
+        }
+    }
+
+    OutlinedTextField(value = uiState.category, onValueChange = onCategoryChange, label = { Text("Category (Item Class)*") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = uiState.manufacturer, onValueChange = onManufacturerChange, label = { Text("Manufacturer") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
     // --- Supplier Info ---
     SectionTitle("Supplier Information")
-    OutlinedTextField(value = uiState.supplier, onValueChange = onSupplierChange, label = { Text("Supplier") })
-    OutlinedTextField(value = uiState.supplierContact, onValueChange = onSupplierContactChange, label = { Text("Supplier Contact") })
+    OutlinedTextField(value = uiState.supplier, onValueChange = onSupplierChange, label = { Text("Supplier") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = uiState.supplierContact, onValueChange = onSupplierContactChange, label = { Text("Supplier Contact") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
     // --- Location Info ---
     SectionTitle("Location")
-    OutlinedTextField(value = uiState.storeSection, onValueChange = onStoreSectionChange, label = { Text("Store Section") })
-    OutlinedTextField(value = uiState.shelfAisle, onValueChange = onShelfAisleChange, label = { Text("Shelf/Aisle #") })
+    OutlinedTextField(value = uiState.storeSection, onValueChange = onStoreSectionChange, label = { Text("Store Section") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = uiState.shelfAisle, onValueChange = onShelfAisleChange, label = { Text("Shelf/Aisle #") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
     // --- Pricing & Stock ---
     SectionTitle("Pricing & Stock")
-    OutlinedTextField(value = uiState.price, onValueChange = onPriceChange, label = { Text("Unit Price*") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = uiState.priceError != null, supportingText = { if (uiState.priceError != null) Text(uiState.priceError) })
-    OutlinedTextField(value = uiState.purchasePrice, onValueChange = onPurchasePriceChange, label = { Text("Purchase Price") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+    OutlinedTextField(value = uiState.price, onValueChange = onPriceChange, label = { Text("Unit Price*") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = uiState.priceError != null, supportingText = { if (uiState.priceError != null) Text(uiState.priceError) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = uiState.purchasePrice, onValueChange = onPurchasePriceChange, label = { Text("Purchase Price") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(modifier = Modifier.weight(1f), value = uiState.quantityToAdd, onValueChange = onQuantityToAddChange, label = { Text("Quantity to Add*") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        OutlinedTextField(modifier = Modifier.weight(1f), value = uiState.quantityToAdd, onValueChange = onQuantityToAddChange, label = { Text("Quantity to Add*") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
         Spacer(Modifier.width(8.dp))
         Text("${uiState.quantityInStock} in stock", style = MaterialTheme.typography.bodyMedium)
     }
 
     // --- Dates ---
     SectionTitle("Dates")
-    OutlinedTextField(value = uiState.purchaseDate.time.formatAsDateForDisplay(), onValueChange = {}, label = { Text("Purchase Date") }, readOnly = true, modifier = Modifier.clickable { activeDatePicker = DatePickerTarget.PURCHASE })
-    OutlinedTextField(value = uiState.expiryDate?.time?.formatAsDateForDisplay() ?: "N/A", onValueChange = {}, label = { Text("Expiry Date") }, readOnly = true, modifier = Modifier.clickable { activeDatePicker = DatePickerTarget.EXPIRY })
+    // Wrap the Purchase Date field in a Box
+    Box(modifier = Modifier.clickable { activeDatePicker = DatePickerTarget.PURCHASE }) {
+        OutlinedTextField(
+            value = uiState.purchaseDate.time.formatAsDateForDisplay(),
+            onValueChange = {},
+            label = { Text("Purchase Date") },
+            // Disable the text field entirely to let the Box handle clicks
+            enabled = false,
+            modifier = Modifier.fillMaxWidth(),
+            // Adjust the colors to make the disabled field look enabled and clear
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        )
+    }
+
+    // Wrap the Expiry Date field in a Box
+    Box(modifier = Modifier.clickable { activeDatePicker = DatePickerTarget.EXPIRY }) {
+        OutlinedTextField(
+            value = uiState.expiryDate?.time?.formatAsDateForDisplay() ?: "N/A",
+            onValueChange = {},
+            label = { Text("Expiry Date") },
+            enabled = false, // Disable the text field
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        )
+    }
 
     // --- Tax ---
     SectionTitle("Tax")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(modifier = Modifier.weight(1f), value = uiState.tax, onValueChange = onTaxChange, label = { Text("Tax") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+        OutlinedTextField(modifier = Modifier.weight(1f), value = uiState.tax, onValueChange = onTaxChange, label = { Text("Tax") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
         Spacer(Modifier.width(8.dp))
         Checkbox(checked = uiState.isTaxFlatRate, onCheckedChange = onTaxTypeChange)
         Text("Flat Rate")
@@ -290,44 +386,33 @@ private fun ProductFormFields(
 
     // --- Meta ---
     SectionTitle("Meta")
+    // Display the primary image
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current).data(uiState.imagePath).crossfade(true).build(),
+        contentDescription = "Selected Product Image",
+        modifier = Modifier
+            .height(150.dp)
+            .fillMaxWidth()
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline,
+                shape = MaterialTheme.shapes.small
+            ),
+        contentScale = ContentScale.Crop
+    )
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // --- Image Preview on the Left ---
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(uiState.imagePath) // Coil can load directly from a file path
-                .crossfade(true)
-                .build(),
-            //placeholder = painterResource(R.drawable.ic_placeholder_image), // A placeholder image from your drawable resources
-            //error = painterResource(R.drawable.ic_error_image), // An error image
-            contentDescription = "Selected Product Image",
-            modifier = Modifier
-                .size(100.dp) // A fixed size for the preview
-                .border(1.dp, MaterialTheme.colorScheme.outline, shape = MaterialTheme.shapes.small),
-            contentScale = ContentScale.Crop // Crop the image to fit the bounds
-        )
 
-        Spacer(Modifier.width(16.dp))
-
-        // --- Button on the Right ---
-        Button(onClick = {
-            imagePickerLauncher.launch("image/*")
-        }) {
-//            Text("Browse...")
-            Text("Browse for Image")
+    // Show archive toggle only for existing products
+    if (uiState.isExistingProduct) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Archived", modifier = Modifier.weight(1f))
+            Switch(checked = uiState.isArchived, onCheckedChange = onArchivedChange)
         }
-    }
-
-    // Display the path of the selected image
-    if (uiState.imagePath.isNotBlank()) {
-        Text("Image: ${uiState.imagePath}", style = MaterialTheme.typography.bodySmall)
     }
 }
 
-// Helper composable for section titles to reduce repetition
+// Helper composable for section titles
 @Composable
 private fun SectionTitle(title: String) {
     Spacer(modifier = Modifier.height(16.dp))

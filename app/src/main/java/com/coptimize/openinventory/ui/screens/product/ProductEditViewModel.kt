@@ -2,16 +2,20 @@ package com.coptimize.openinventory.ui.screens.product
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.coptimize.openinventory.data.model.Product
 import com.coptimize.openinventory.data.model.Stock
+import com.coptimize.openinventory.data.repository.ProductAnalysisRepository
+import com.coptimize.openinventory.data.repository.ProductDiscoveryRepository
 import com.coptimize.openinventory.data.repository.ProductRepository
 import com.coptimize.openinventory.data.repository.UserSessionRepository
 import com.coptimize.openinventory.ui.formatAsDateForDatabaseQuery
 import com.coptimize.openinventory.ui.formatDateForDisplay
 import com.coptimize.openinventory.ui.stringToDate
+import com.coptimize.openinventory.worker.DiscoveryScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,19 +25,18 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Date
-import java.util.UUID
 import javax.inject.Inject
 
-// Represents the state of all fields on the screen
 data class ProductEditUiState(
     val isLoading: Boolean = true,
     val isExistingProduct: Boolean = false,
     val isSaveSuccessful: Boolean = false,
+    val isAnalyzing: Boolean = false,
 
     // Item Details
     val name: String = "",
     val barcode: String = "",
-    val category: String = "", // itemClassLineEdit
+    val category: String = "",
     val manufacturer: String = "",
     val supplier: String = "",
     val supplierContact: String = "",
@@ -44,19 +47,20 @@ data class ProductEditUiState(
 
     // Pricing & Stock
     val price: String = "",
-    val quantityToAdd: String = "0", // itemQtyLineEdit, represents the new stock being added
-    val quantityInStock: Int = 0, // quantityInStockLabel
+    val quantityToAdd: String = "0",
+    val quantityInStock: Int = 0,
     val purchasePrice: String = "",
     val unitPrice: String = "",
     val tax: String = "",
     val isTaxFlatRate: Boolean = false,
 
     // Dates
-    val purchaseDate: Date = Date(), // dateTimeEdit
-    val expiryDate: Date? = null,    // expiryDateEdit
+    val purchaseDate: Date = Date(),
+    val expiryDate: Date? = null,
 
     // Meta
-    val imagePath: String = "",
+    val imagePath: String = "", // Still used for the "Primary" display image
+    val capturedImagePaths: List<String> = emptyList(), // NEW: Holds all captured images
     val isArchived: Boolean = false,
 
     // Validation
@@ -67,6 +71,8 @@ data class ProductEditUiState(
 @HiltViewModel
 class ProductEditViewModel @Inject constructor(
     private val productRepository: ProductRepository,
+    private val analysisRepository: ProductAnalysisRepository,
+    private val discoveryRepository: ProductDiscoveryRepository,
     private val userSessionRepository: UserSessionRepository,
     savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
@@ -78,11 +84,9 @@ class ProductEditViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        // Load the product if a valid ID was passed
         if (productId != null && productId != "-1") {
             loadProduct(productId)
         } else {
-            // It's a new product, so we're ready to edit
             _uiState.update { it.copy(isLoading = false) }
         }
     }
@@ -108,20 +112,20 @@ class ProductEditViewModel @Inject constructor(
                         isArchived = product.deletedAt != null
                     )
                 }
-                if (stock != null){
-                    _uiState.update{
+                if (stock != null) {
+                    _uiState.update {
                         it.copy(
-                            supplier = stock.supplier?:"",
-                            supplierContact = stock.supplierContact?:"",
+                            supplier = stock.supplier ?: "",
+                            supplierContact = stock.supplierContact ?: "",
                         )
                     }
-                    if (stock.purchaseDate !=null){
+                    if (!stock.purchaseDate.isNullOrEmpty()) {
                         _uiState.update { it.copy(purchaseDate = stringToDate(stock.purchaseDate)) }
                     }
-                    if (stock.expiryDate !=null){
+                    if (!stock.expiryDate.isNullOrEmpty()) {
                         _uiState.update { it.copy(expiryDate = stringToDate(stock.expiryDate)) }
                     }
-                    if (stock.purchasePrice != null){
+                    if (stock.purchasePrice != null) {
                         _uiState.update { it.copy(purchasePrice = stock.purchasePrice.toString()) }
                     }
                 }
@@ -131,7 +135,7 @@ class ProductEditViewModel @Inject constructor(
         }
     }
 
-    // --- Event Handlers for ALL UI fields ---
+    // ... (Keep simple field handlers: onNameChange, onBarcodeChange, etc.) ...
     fun onNameChange(value: String) = _uiState.update { it.copy(name = value, nameError = null) }
     fun onBarcodeChange(value: String) = _uiState.update { it.copy(barcode = value) }
     fun onCategoryChange(value: String) = _uiState.update { it.copy(category = value) }
@@ -149,21 +153,48 @@ class ProductEditViewModel @Inject constructor(
     fun onExpiryDateChange(date: Date?) = _uiState.update { it.copy(expiryDate = date) }
     fun onArchivedChange(isArchived: Boolean) = _uiState.update { it.copy(isArchived = isArchived) }
 
+    fun onImageSelected(uri: Uri?) {
+        if (uri == null) return
+        viewModelScope.launch {
+            val imagePath = saveImageToInternalStorage(uri)
+            if (imagePath != null) {
+                // If selecting from gallery, we set it as primary AND add it to the list
+                _uiState.update {
+                    it.copy(
+                        imagePath = imagePath,
+                        capturedImagePaths = it.capturedImagePaths + imagePath
+                    )
+                }
+            }
+        }
+    }
+
+    // Updated to handle list of images
+    fun onEnrollmentComplete(barcode: String?, imageUris: List<Uri>) {
+        _uiState.update {
+            it.copy(
+                barcode = barcode ?: it.barcode,
+                // Set the first image as the primary one for UI display
+                imagePath = imageUris.firstOrNull()?.path ?: it.imagePath,
+                // Store ALL paths for the upload logic
+                capturedImagePaths = imageUris.mapNotNull { uri -> uri.path }
+            )
+        }
+    }
+
     fun saveProduct() {
         if (!validateInput()) return
 
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+
             val currentState = _uiState.value
             val quantityChange = currentState.quantityToAdd.toIntOrNull() ?: 0
             val isNewProduct = !currentState.isExistingProduct
-
-            // Generate a new ID for the product only if it's new
-            var finalProductId = if (isNewProduct) "" else productId!!
-
-            // In a real app, get this from a UserSession repository
+            val finalProductId = if (isNewProduct) "" else productId!!
             val currentUserId = userSessionRepository.getCurrentUserId()
 
-            // 1. Create the Product and Stock objects to save/update
+            // 1. Save Product to Local DB
             val productToSave = Product(
                 id = finalProductId,
                 name = currentState.name,
@@ -171,19 +202,16 @@ class ProductEditViewModel @Inject constructor(
                 category = currentState.category,
                 manufacturer = currentState.manufacturer.takeIf { it.isNotBlank() },
                 price = currentState.price.toDoubleOrNull() ?: 0.0,
-                quantity = currentState.quantityInStock + quantityChange, // The NEW total quantity
+                quantity = currentState.quantityInStock + quantityChange,
                 tax = currentState.tax.toDoubleOrNull() ?: 0.0,
                 isTaxFlatRate = currentState.isTaxFlatRate,
                 imagePath = currentState.imagePath.takeIf { it.isNotBlank() },
-                deletedAt = if (currentState.isArchived) "archived" else null, // Example
+                deletedAt = if (currentState.isArchived) "archived" else null,
                 shelf = currentState.shelfAisle.takeIf { it.isNotBlank() },
                 section = currentState.storeSection.takeIf { it.isNotBlank() },
                 userId = currentUserId
             )
 
-            // 3. Create a new Stock log entry IF a positive quantity was added.
-            // This logs the specific purchase event.
-//            if (quantityChange > 0) { We allow updates to other fields
             val stockEvent = Stock(
                 id = "",
                 productId = finalProductId,
@@ -191,30 +219,21 @@ class ProductEditViewModel @Inject constructor(
                 supplierContact = currentState.supplierContact.takeIf { it.isNotBlank() },
                 purchasePrice = currentState.purchasePrice.toDoubleOrNull() ?: 0.0,
                 purchaseDate = currentState.purchaseDate.time.formatAsDateForDatabaseQuery(),
-                expiryDate = if (currentState.expiryDate!=null) formatDateForDisplay(
-                    currentState.expiryDate,
-                    format = "yyyy-MM-dd HH:mm:ss",
-                ) else "",
+                expiryDate = if (currentState.expiryDate != null) formatDateForDisplay(currentState.expiryDate, format = "yyyy-MM-dd HH:mm:ss") else "",
                 quantity = quantityChange,
                 userId = currentUserId,
-                unitPrice = currentState.unitPrice.toDoubleOrNull()?:0.0,
+                unitPrice = currentState.unitPrice.toDoubleOrNull() ?: 0.0,
             )
-//            }
 
-            // 2. Perform the Product table operation (either create or update)
+            var savedProductId = finalProductId
             if (isNewProduct) {
-                // For a new product, we simply add it with its initial quantity.
-                finalProductId = productRepository.addProduct(productToSave)
-                if (finalProductId.isNotBlank()){
-                    val newStock: Stock =  stockEvent.copy(productId=finalProductId)
+                savedProductId = productRepository.addProduct(productToSave)
+                if (savedProductId.isNotBlank()) {
+                    val newStock: Stock = stockEvent.copy(productId = savedProductId)
                     productRepository.addStock(newStock)
                 }
             } else {
-                // For an existing product, we call the specialized update query
-                // that handles incrementing the stock quantity atomically.
-                productRepository.updateProductAndStock(product=productToSave, stock=stockEvent)
-
-                // Also handle archive/restore logic if needed
+                productRepository.updateProductAndStock(product = productToSave, stock = stockEvent)
                 if (currentState.isArchived && productToSave.deletedAt == null) {
                     productRepository.deleteProduct(productToSave.id, currentUserId)
                 } else if (!currentState.isArchived && productToSave.deletedAt != null) {
@@ -222,8 +241,58 @@ class ProductEditViewModel @Inject constructor(
                 }
             }
 
-            // 4. Signal to the UI that the save was successful.
-            _uiState.update { it.copy(isSaveSuccessful = true) }
+            // 2. Trigger Discovery Logic (Using all captured images)
+
+            // Determine which images to send.
+            // If we captured multiple in this session, use those.
+            // If we didn't capture new ones but there's a primary image (e.g. existing product), send that.
+            val imagesToSend = if (currentState.capturedImagePaths.isNotEmpty()) {
+                currentState.capturedImagePaths
+            } else if (!currentState.imagePath.isNullOrBlank()) {
+                listOf(currentState.imagePath)
+            } else {
+                emptyList()
+            }
+
+            if (imagesToSend.isNotEmpty()) {
+                triggerDiscoveryProcess(savedProductId, imagesToSend)
+            }
+
+            _uiState.update { it.copy(isSaveSuccessful = true, isLoading = false) }
+        }
+    }
+
+    private suspend fun triggerDiscoveryProcess(productId: String, imagePaths: List<String>) {
+        try {
+            // Convert strings paths to URIs
+            val uris = imagePaths.map { path ->
+                val file = File(path)
+                if (file.exists()) Uri.fromFile(file) else Uri.parse(path)
+            }
+
+            // A. Upload Images & Get Task ID
+            val taskId = analysisRepository.performRemoteOcrAndInference(uris)
+
+            // B. Save Task locally
+            discoveryRepository.saveTask(
+                productId = productId,
+                taskId = taskId,
+                stockId = null
+            )
+
+            // C. Schedule Worker
+            DiscoveryScheduler.scheduleTaskMonitoring(
+                context = context,
+                taskId = taskId,
+                productId = productId,
+                stockId = null
+            )
+
+            Log.i("CLEMENT", "Discovery started for Product $productId with Task $taskId using ${uris.size} images")
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.e("CLEMENT", "Failed to initiate discovery: ${e.message}")
         }
     }
 
@@ -231,49 +300,20 @@ class ProductEditViewModel @Inject constructor(
         val currentState = _uiState.value
         val nameError = if (currentState.name.isBlank()) "Name cannot be empty" else null
         val priceError = if (currentState.price.toDoubleOrNull() == null) "Invalid price" else null
-
         _uiState.update { it.copy(nameError = nameError, priceError = priceError) }
-
         return nameError == null && priceError == null
     }
 
-    fun onImageSelected(uri: Uri?) {
-        if (uri == null) return // User cancelled the picker
-
-        viewModelScope.launch {
-            // Copy the image from the content URI to our app's private storage
-            val imagePath = saveImageToInternalStorage(uri)
-            if (imagePath != null) {
-                // Update the UI state with the path to our new, private copy
-                _uiState.update { it.copy(imagePath = imagePath) }
-            }
-        }
-    }
-
-    /**
-     * Copies a file from a given content URI to the app's internal files directory.
-     * This ensures the app has permanent access to the image.
-     * @return The absolute path to the newly created file, or null on failure.
-     */
     private fun saveImageToInternalStorage(uri: Uri): String? {
         return try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-
-            // Create a file in the app's private "images" directory
             val imagesDir = File(context.filesDir, "images")
-            if (!imagesDir.exists()) {
-                imagesDir.mkdir()
-            }
-            // Create a unique file name using the current time
+            if (!imagesDir.exists()) imagesDir.mkdir()
             val file = File(imagesDir, "${System.currentTimeMillis()}.jpg")
-
             val outputStream = FileOutputStream(file)
             inputStream.copyTo(outputStream)
-
             inputStream.close()
             outputStream.close()
-
-            // Return the permanent path to our copy of the image
             file.absolutePath
         } catch (e: Exception) {
             e.printStackTrace()

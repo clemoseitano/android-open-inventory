@@ -1,6 +1,6 @@
 # OpenInventory for Android
 
-![App Icon](./app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png)
+![App Icon](./app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp)
 
 OpenInventory is an offline-first Point of Sale (POS) and inventory management application designed for small to medium-sized businesses. Originally a desktop application, this project brings the full feature set to the Android platform, supporting both phones and tablets.
 

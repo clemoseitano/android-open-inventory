@@ -69,6 +69,11 @@ android {
         viewBinding = true
         compose = true
     }
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 dependencies {
@@ -90,8 +95,9 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.runtime)
-    implementation(libs.hilt.android)
+    ksp(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.sqldelight.android.driver)
     implementation(libs.sqldelight.coroutines.extensions)
@@ -99,6 +105,19 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.zxing.android.embedded)
     implementation(libs.sqlite.framework.android)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.google.ml.kit.text.recognition)
+    implementation(libs.google.ml.kit.text.recognition.common)
+    implementation(libs.retrofit2.retrofit)
+    implementation(libs.retrofit2.converter.gson)
+    implementation(libs.okhttp3.okhttp)
+    implementation(libs.okhttp3.logging.intercepter)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

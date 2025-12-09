@@ -1,6 +1,5 @@
 package com.coptimize.openinventory.ui.screens.sale
 
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -73,21 +73,24 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.coptimize.openinventory.data.model.CartItem
 import com.coptimize.openinventory.data.model.SavedCart
+import com.coptimize.openinventory.navigation.Screen
 import com.coptimize.openinventory.ui.screens.AppDrawerContent
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+// A data class for the Save Cart dialog
 data class CustomerInfo(
     val customerName: String?,
     val customerContact: String?,
     val paymentMethod: String?
 )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainSaleScreen(
@@ -108,15 +111,11 @@ fun MainSaleScreen(
     var showCheckoutDialog by remember { mutableStateOf(false) }
     var showSaveCartDialog by remember { mutableStateOf(false) }
     var showSavedCartsList by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) } // State to control scanner visibility
 
     // --- State and scope for the navigation drawer ---
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    // --- Activity Result Launchers ---
-    val barcodeLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { viewModel.onBarcodeScanned(it) }
-    }
 
     // --- Event Handling Side Effects ---
     HandleSaleCompletion(
@@ -124,6 +123,15 @@ fun MainSaleScreen(
         lowStockProducts = lowStockProducts,
         onDismiss = viewModel::resetSaleState
     )
+
+    // --- Handle navigation for empty product list ---
+    LaunchedEffect(Unit) {
+        viewModel.navigateToProductManagement.collectLatest { shouldNavigate ->
+            if (shouldNavigate) {
+                navController.navigate(Screen.ProductManagement.route)
+            }
+        }
+    }
 
     // --- UI Structure with Navigation Drawer ---
     ModalNavigationDrawer(
@@ -145,7 +153,6 @@ fun MainSaleScreen(
                         }
                     },
                     actions = {
-                        // --- Updated Save Cart Icon with Badge ---
                         BadgedBox(
                             badge = {
                                 if (savedCarts.isNotEmpty()) {
@@ -158,96 +165,81 @@ fun MainSaleScreen(
                                     onClick = { showSaveCartDialog = true },
                                     enabled = cartItems.isNotEmpty()
                                 ) {
-                                    Icon(
-                                        Icons.Default.Save,
-                                        contentDescription = "Save Current Cart"
-                                    )
+                                    Icon(Icons.Default.Save, "Save Current Cart")
                                 }
                                 IconButton(
                                     onClick = { showSavedCartsList = true },
                                     enabled = savedCarts.isNotEmpty()
                                 ) {
-                                    Icon(
-                                        Icons.Default.FolderOpen,
-                                        contentDescription = "Open Saved Carts"
-                                    )
+                                    Icon(Icons.Default.FolderOpen, "Open Saved Carts")
                                 }
                             }
                         }
                     }
                 )
-            }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize()
-            ) {
-                // --- Main Content (Cart + Summary), sits at the bottom layer ---
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .fillMaxSize()
-                ) {
-                    // Spacer to leave room for the SearchBar which will be placed on top
-                    Spacer(Modifier.height(80.dp))
-
-                    if (cartItems.isEmpty()) {
-                        EmptyCartView(modifier = Modifier.weight(1f))
-                    } else {
-                        CartView(
-                            modifier = Modifier.weight(1f),
-                            cartItems = cartItems,
-                            onRemoveClick = viewModel::onRemoveFromCart,
-                            onQuantityChange = viewModel::onUpdateCartQuantity
-                        )
-                    }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    SaleSummary(
-                        subtotal = subtotal,
-                        tax = tax,
-                        total = total,
-                        onCompleteSale = { showCheckoutDialog = true },
-                        isCartEmpty = cartItems.isEmpty()
-                    )
-                }
-
-                // --- Search UI (SearchBar + Results), sits on the top layer ---
+            },
+            bottomBar = {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    SearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = viewModel::onSearchQueryChanged,
-                        onBarcodeClick = {
-                            barcodeLauncher.launch(ScanOptions().apply {
-                                setPrompt("Scan a barcode")
-                                setBeepEnabled(true)
-                            })
-                        }
-                    )
-
                     AnimatedVisibility(visible = uiState.searchResults.isNotEmpty() && uiState.searchQuery.isNotBlank()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(8.dp)
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .heightIn(max = 240.dp) // Limit the height of the results list
-                            ) {
+                        Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(8.dp)) {
+                            LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
                                 items(uiState.searchResults, key = { it.id }) { product ->
                                     ListItem(
                                         headlineContent = { Text(product.name) },
                                         supportingContent = { Text("In Stock: ${product.quantity}") },
-                                        modifier = Modifier.clickable {
-                                            viewModel.onProductSelectedFromSearch(
-                                                product
-                                            )
-                                        }
+                                        modifier = Modifier.clickable { viewModel.onProductSelectedFromSearch(product) }
                                     )
                                 }
                             }
                         }
                     }
+                    SearchBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = viewModel::onSearchQueryChanged,
+                        onBarcodeClick = {
+                            showScanner = true // Show the embedded scanner
+                        }
+                    )
+                }
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp)
+                    .fillMaxSize()
+            ) {
+                if (cartItems.isEmpty()) {
+                    EmptyCartView(modifier = Modifier.weight(1f))
+                } else {
+                    CartView(
+                        modifier = Modifier.weight(1f),
+                        cartItems = cartItems,
+                        onRemoveClick = viewModel::onRemoveFromCart,
+                        onQuantityChange = viewModel::onUpdateCartQuantity
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                SaleSummary(
+                    subtotal = subtotal,
+                    tax = tax,
+                    total = total,
+                    onCompleteSale = { showCheckoutDialog = true },
+                    isCartEmpty = cartItems.isEmpty()
+                )
+            }
+        }
+    }
+
+    if (showScanner) {
+        Dialog(onDismissRequest = { showScanner = false }) {
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f) // Makes the scanner view a square
+            ) {
+                EmbeddedScanner { barcode ->
+                    viewModel.onBarcodeScanned(barcode)
+                    showScanner = false // Hide scanner after successful scan
                 }
             }
         }
@@ -299,22 +291,16 @@ fun MainSaleScreen(
         )
     }
 }
-
 @Composable
-fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onBarcodeClick: () -> Unit
-) {
+fun SearchBar(query: String, onQueryChange: (String) -> Unit, onBarcodeClick: () -> Unit) {
     val focusRequester = remember { FocusRequester() }
-
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         label = { Text("Scan or type to search...") },
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp)
+            .padding(bottom = 16.dp, top = 8.dp)
             .focusRequester(focusRequester),
         trailingIcon = {
             IconButton(onClick = onBarcodeClick) {
@@ -323,78 +309,44 @@ fun SearchBar(
         },
         singleLine = true
     )
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 }
 
 @Composable
-fun QuantityStepper(
-    item: CartItem,
-    onQuantityChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun QuantityStepper(item: CartItem, onQuantityChange: (Int) -> Unit, modifier: Modifier = Modifier) {
     var quantityText by remember { mutableStateOf(item.quantity.toString()) }
     val focusManager = LocalFocusManager.current
-
     LaunchedEffect(item.quantity) {
         if (quantityText.toIntOrNull() != item.quantity) {
             quantityText = item.quantity.toString()
         }
     }
-
     val commitChange = {
         val newQuantity = quantityText.toIntOrNull() ?: 1
         onQuantityChange(newQuantity.coerceIn(0, item.maxStock))
         focusManager.clearFocus()
     }
-
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(
-            onClick = { onQuantityChange(item.quantity + 1) },
-            enabled = item.quantity < item.maxStock,
-            modifier = Modifier.size(24.dp)
-        ) {
+        IconButton(onClick = { onQuantityChange(item.quantity + 1) }, enabled = item.quantity < item.maxStock, modifier = Modifier.size(24.dp)) {
             Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Increase quantity")
         }
-
         BasicTextField(
             value = quantityText,
-            onValueChange = { newText ->
-                quantityText = newText.filter { it.isDigit() }.let {
-                    if (it.length > 1 && it.startsWith('0')) it.drop(1) else it
-                }
-            },
+            onValueChange = { newText -> quantityText = newText.filter { it.isDigit() }.let { if (it.length > 1 && it.startsWith('0')) it.drop(1) else it } },
             modifier = Modifier.width(40.dp),
-            textStyle = LocalTextStyle.current.copy(
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done
-            ),
+            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { commitChange() }),
             singleLine = true
         )
-
-        IconButton(
-            onClick = { onQuantityChange(item.quantity - 1) },
-            modifier = Modifier.size(24.dp)
-        ) {
+        IconButton(onClick = { onQuantityChange(item.quantity - 1) }, modifier = Modifier.size(24.dp)) {
             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Decrease quantity")
         }
     }
 }
 
 @Composable
-fun CartView(
-    modifier: Modifier = Modifier,
-    cartItems: List<CartItem>,
-    onRemoveClick: (String) -> Unit,
-    onQuantityChange: (String, Int) -> Unit
-) {
+fun CartView(modifier: Modifier = Modifier, cartItems: List<CartItem>, onRemoveClick: (String) -> Unit, onQuantityChange: (String, Int) -> Unit) {
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(cartItems, key = { it.productId }) { item ->
             ListItem(
@@ -405,15 +357,14 @@ fun CartView(
                 },
                 trailingContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+
                         QuantityStepper(
                             item = item,
                             onQuantityChange = { newQuantity ->
                                 onQuantityChange(item.productId, newQuantity)
                             }
                         )
-                        IconButton(onClick = { onRemoveClick(item.productId) }) {
-                            Icon(Icons.Default.DeleteOutline, "Remove item from cart")
-                        }
+                        IconButton(onClick = { onRemoveClick(item.productId) }) { Icon(Icons.Default.DeleteOutline, "Remove item from cart") }
                     }
                 }
             )
@@ -423,61 +374,27 @@ fun CartView(
 }
 
 @Composable
-fun SaleSummary(
-    subtotal: Double,
-    tax: Double,
-    total: Double,
-    onCompleteSale: () -> Unit,
-    isCartEmpty: Boolean
-) {
+fun SaleSummary(subtotal: Double, tax: Double, total: Double, onCompleteSale: () -> Unit, isCartEmpty: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Subtotal")
-            Text("€${"%.2f".format(subtotal)}")
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Tax")
-            Text("€${"%.2f".format(tax)}")
-        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Subtotal"); Text("€${"%.2f".format(subtotal)}") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Tax"); Text("€${"%.2f".format(tax)}") }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                "Total",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "€${"%.2f".format(total)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("€${"%.2f".format(total)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = onCompleteSale,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isCartEmpty
-        ) {
-            Text("Complete Sale")
-        }
+        Button(onClick = onCompleteSale, modifier = Modifier.fillMaxWidth(), enabled = !isCartEmpty) { Text("Complete Sale") }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckoutDialog(
-    totalAmount: Double,
-    activeCustomerInfo: CustomerInfo?,
-    onDismiss: () -> Unit,
-    onConfirm: (CheckoutDetails) -> Unit
-) {
+fun CheckoutDialog(totalAmount: Double, activeCustomerInfo: CustomerInfo?, onDismiss: () -> Unit, onConfirm: (CheckoutDetails) -> Unit) {
     val paymentMethods = listOf("Cash", "Mobile Money", "Bank Card")
-    // Use the active cart's data as the initial state if we are updating
     var customerName by remember { mutableStateOf(activeCustomerInfo?.customerName ?: "") }
     var customerContact by remember { mutableStateOf(activeCustomerInfo?.customerContact ?: "") }
     var paymentMethod by remember { mutableStateOf(activeCustomerInfo?.paymentMethod ?: paymentMethods.first()) }
-    // This effect ensures that if the dialog recomposes for any reason,
-    // the state isn't reset. It only sets the initial values once.
     LaunchedEffect(activeCustomerInfo) {
         if (activeCustomerInfo != null) {
             customerName = activeCustomerInfo.customerName ?: ""
@@ -501,73 +418,27 @@ fun CheckoutDialog(
             LazyColumn {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Final Amount Due: €${"%.2f".format(displayTotal)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Final Amount Due: €${"%.2f".format(displayTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         HorizontalDivider()
-                        Text(
-                            "Customer Details (Optional)",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        OutlinedTextField(
-                            value = customerName,
-                            onValueChange = { customerName = it },
-                            label = { Text("Customer Name") })
-                        OutlinedTextField(
-                            value = customerContact,
-                            onValueChange = { customerContact = it },
-                            label = { Text("Customer Contact") })
+                        Text("Customer Details (Optional)", style = MaterialTheme.typography.titleSmall)
+                        OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Customer Name") })
+                        OutlinedTextField(value = customerContact, onValueChange = { customerContact = it }, label = { Text("Customer Contact") })
                         Text("Payment Details", style = MaterialTheme.typography.titleSmall)
-                        ExposedDropdownMenuBox(
-                            expanded = isPaymentDropdownExpanded,
-                            onExpandedChange = {
-                                isPaymentDropdownExpanded = !isPaymentDropdownExpanded
-                            }) {
+                        ExposedDropdownMenuBox(expanded = isPaymentDropdownExpanded, onExpandedChange = { isPaymentDropdownExpanded = !isPaymentDropdownExpanded }) {
                             OutlinedTextField(
-                                value = paymentMethod,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Payment Method") },
+                                value = paymentMethod, onValueChange = {}, readOnly = true, label = { Text("Payment Method") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPaymentDropdownExpanded) },
                                 modifier = Modifier.menuAnchor()
                             )
-                            ExposedDropdownMenu(
-                                expanded = isPaymentDropdownExpanded,
-                                onDismissRequest = { isPaymentDropdownExpanded = false }) {
-                                paymentMethods.forEach { method ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                method
-                                            )
-                                        },
-                                        onClick = {
-                                            paymentMethod = method; isPaymentDropdownExpanded =
-                                            false
-                                        })
-                                }
+                            ExposedDropdownMenu(expanded = isPaymentDropdownExpanded, onDismissRequest = { isPaymentDropdownExpanded = false }) {
+                                paymentMethods.forEach { method -> DropdownMenuItem(text = { Text(method) }, onClick = { paymentMethod = method; isPaymentDropdownExpanded = false }) }
                             }
                         }
-                        OutlinedTextField(
-                            value = discountString,
-                            onValueChange = { discountString = it },
-                            label = { Text("Discount") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                        )
+                        OutlinedTextField(value = discountString, onValueChange = { discountString = it }, label = { Text("Discount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         AnimatedVisibility(visible = paymentMethod == "Cash") {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedTextField(
-                                    value = amountTenderedString,
-                                    onValueChange = { amountTenderedString = it },
-                                    label = { Text("Amount Tendered") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                                Text(
-                                    "Change Due: €${"%.2f".format(changeDue)}",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
+                                OutlinedTextField(value = amountTenderedString, onValueChange = { amountTenderedString = it }, label = { Text("Amount Tendered") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                                Text("Change Due: €${"%.2f".format(changeDue)}", style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                     }
@@ -577,16 +448,11 @@ fun CheckoutDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val finalPaidAmount =
-                        if (paymentMethod == "Cash") amountTendered else displayTotal
+                    val finalPaidAmount = if (paymentMethod == "Cash") amountTendered else displayTotal
                     val finalChangeAmount = if (paymentMethod == "Cash") changeDue else 0.0
                     val details = CheckoutDetails(
-                        paidAmount = finalPaidAmount,
-                        changeAmount = finalChangeAmount,
-                        discount = discount,
-                        customerName = customerName.takeIf { it.isNotBlank() },
-                        customerContact = customerContact.takeIf { it.isNotBlank() },
-                        paymentMethod = paymentMethod
+                        paidAmount = finalPaidAmount, changeAmount = finalChangeAmount, discount = discount,
+                        customerName = customerName.takeIf { it.isNotBlank() }, customerContact = customerContact.takeIf { it.isNotBlank() }, paymentMethod = paymentMethod
                     )
                     onConfirm(details)
                 },
@@ -598,63 +464,33 @@ fun CheckoutDialog(
 }
 
 @Composable
-fun HandleSaleCompletion(
-    saleState: SaleCompletionState,
-    lowStockProducts: List<String>,
-    onDismiss: () -> Unit
-) {
+fun HandleSaleCompletion(saleState: SaleCompletionState, lowStockProducts: List<String>, onDismiss: () -> Unit) {
     var showLowStockAlert by remember { mutableStateOf(false) }
     LaunchedEffect(saleState, lowStockProducts) {
-        if (saleState is SaleCompletionState.Success && lowStockProducts.isNotEmpty()) {
-            showLowStockAlert = true
-        } else if (saleState is SaleCompletionState.Idle) {
-            showLowStockAlert = false
-        }
+        if (saleState is SaleCompletionState.Success && lowStockProducts.isNotEmpty()) { showLowStockAlert = true }
+        else if (saleState is SaleCompletionState.Idle) { showLowStockAlert = false }
     }
     when (saleState) {
         is SaleCompletionState.Success -> {
             AlertDialog(
-                onDismissRequest = onDismiss,
-                icon = { Icon(Icons.Default.CheckCircle, null) },
-                title = { Text("Sale Completed") },
-                text = {
-                    Text(
-                        "Sale ID: ${saleState.saleId.takeLast(6)}\nChange Due: €${
-                            "%.2f".format(
-                                saleState.change
-                            )
-                        }"
-                    )
-                },
+                onDismissRequest = onDismiss, icon = { Icon(Icons.Default.CheckCircle, null) }, title = { Text("Sale Completed") },
+                text = { Text("Sale ID: ${saleState.saleId.takeLast(6)}\nChange Due: €${"%.2f".format(saleState.change)}") },
                 confirmButton = { TextButton(onClick = { /* TODO */ }) { Text("Print Receipt") } },
                 dismissButton = { TextButton(onClick = onDismiss) { Text("Done") } }
             )
         }
-
         is SaleCompletionState.Error -> {
             AlertDialog(
-                onDismissRequest = onDismiss,
-                icon = { Icon(Icons.Default.Error, null) },
-                title = { Text("Sale Failed") },
-                text = { Text(saleState.message) },
+                onDismissRequest = onDismiss, icon = { Icon(Icons.Default.Error, null) }, title = { Text("Sale Failed") }, text = { Text(saleState.message) },
                 confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
             )
         }
-
         else -> {}
     }
     if (showLowStockAlert) {
         AlertDialog(
             onDismissRequest = { showLowStockAlert = false }, title = { Text("Low Stock Warning") },
-            text = {
-                Text(
-                    "The following products are now low on stock:\n\n${
-                        lowStockProducts.joinToString(
-                            "\n"
-                        )
-                    }"
-                )
-            },
+            text = { Text("The following products are now low on stock:\n\n${lowStockProducts.joinToString("\n")}") },
             confirmButton = { TextButton(onClick = { showLowStockAlert = false }) { Text("OK") } }
         )
     }
@@ -663,30 +499,17 @@ fun HandleSaleCompletion(
 @Composable
 fun EmptyCartView(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            "Scan an item or search to begin a new sale.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text("Scan an item or search to begin a new sale.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SaveCartDialog(
-    isUpdate: Boolean,
-    activeCustomerInfo: CustomerInfo?,
-    onDismiss: () -> Unit,
-    onConfirm: (customerName: String, customerContact: String?, paymentMethod: String) -> Unit
-) {
-    val paymentMethods = listOf("Cash", "Mobile Money", "Bank Card")
-    // Use the active cart's data as the initial state if we are updating
+fun SaveCartDialog(isUpdate: Boolean, activeCustomerInfo: CustomerInfo?, onDismiss: () -> Unit, onConfirm: (customerName: String, customerContact: String?, paymentMethod: String) -> Unit) {
+    val paymentMethods = listOf("Cash", "Mobile Money", "Bank Card", "N/A")
     var customerName by remember { mutableStateOf(if (isUpdate) activeCustomerInfo?.customerName ?: "" else "") }
     var customerContact by remember { mutableStateOf(if (isUpdate) activeCustomerInfo?.customerContact ?: "" else "") }
     var paymentMethod by remember { mutableStateOf(if (isUpdate) activeCustomerInfo?.paymentMethod ?: paymentMethods.first() else paymentMethods.first()) }
-    // This effect ensures that if the dialog recomposes for any reason,
-    // the state isn't reset. It only sets the initial values once.
     LaunchedEffect(activeCustomerInfo) {
         if (isUpdate && activeCustomerInfo != null) {
             customerName = activeCustomerInfo.customerName ?: ""
@@ -695,98 +518,47 @@ fun SaveCartDialog(
         }
     }
     var isDropdownExpanded by remember { mutableStateOf(false) }
-
+    var nameError by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isUpdate) "Update Cart" else "Save Cart") },
+        title = { Text(if (isUpdate) "Update Saved Cart" else "Save Cart") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Enter customer details to identify this cart later.")
-                OutlinedTextField(
-                    value = customerName,
-                    onValueChange = { customerName = it; },
-                    label = { Text("Customer Name") },
-                )
-                OutlinedTextField(
-                    value = customerContact,
-                    onValueChange = { customerContact = it },
-                    label = { Text("Customer Contact (Optional)") }
-                )
-
-                // --- ADDED PAYMENT METHOD DROPDOWN ---
-                ExposedDropdownMenuBox(
-                    expanded = isDropdownExpanded,
-                    onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
-                ) {
+                OutlinedTextField(value = customerName, onValueChange = { customerName = it; nameError = null }, label = { Text("Customer Name*") }, isError = nameError != null, supportingText = { if (nameError != null) Text(nameError.toString()) })
+                OutlinedTextField(value = customerContact, onValueChange = { customerContact = it }, label = { Text("Customer Contact (Optional)") })
+                ExposedDropdownMenuBox(expanded = isDropdownExpanded, onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }) {
                     OutlinedTextField(
-                        value = paymentMethod,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Expected Payment Method") },
+                        value = paymentMethod, onValueChange = {}, readOnly = true, label = { Text("Expected Payment Method") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
                         modifier = Modifier.menuAnchor()
                     )
-                    ExposedDropdownMenu(
-                        expanded = isDropdownExpanded,
-                        onDismissRequest = { isDropdownExpanded = false }
-                    ) {
-                        paymentMethods.forEach { method ->
-                            DropdownMenuItem(
-                                text = { Text(method) },
-                                onClick = {
-                                    paymentMethod = method
-                                    isDropdownExpanded = false
-                                }
-                            )
-                        }
+                    ExposedDropdownMenu(expanded = isDropdownExpanded, onDismissRequest = { isDropdownExpanded = false }) {
+                        paymentMethods.forEach { method -> DropdownMenuItem(text = { Text(method) }, onClick = { paymentMethod = method; isDropdownExpanded = false }) }
                     }
                 }
             }
         },
-        confirmButton = {
-            Button(onClick = {
-                onConfirm(
-                    customerName,
-                    customerContact.takeIf { it.isNotBlank() },
-                    paymentMethod
-                )
-            }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        confirmButton = { Button(onClick = { if (customerName.isBlank()) { nameError = "Customer name is required" } else { onConfirm(customerName, customerContact.takeIf { it.isNotBlank() }, paymentMethod) } }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SavedCartsBottomSheet(
-    savedCarts: List<SavedCart>,
-    onDismiss: () -> Unit,
-    onRestore: (String) -> Unit,
-    onCancel: (String) -> Unit
-) {
+fun SavedCartsBottomSheet(savedCarts: List<SavedCart>, onDismiss: () -> Unit, onRestore: (String) -> Unit, onCancel: (String) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Pending Carts",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            Text("Pending Carts", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(savedCarts, key = { it.id }) { cart ->
                     ListItem(
                         headlineContent = { Text(cart.customerId ?: "Unknown") },
                         supportingContent = { Text("Saved on: ${cart.createdAt}") },
                         trailingContent = {
-                            Row { Button(onClick = { onRestore(cart.id) }) {
-                                Text("Restore")
-                            }
-                                IconButton(onClick = { onCancel(cart.id) }) {
-                                Icon(Icons.Default.DeleteOutline, "Remove item from cart")
-                            }
+                            Row {
+                                Button(onClick = { onRestore(cart.id) }) { Text("Restore") }
+                                IconButton(onClick = { onCancel(cart.id) }) { Icon(Icons.Default.DeleteOutline, "Remove item from cart") }
                             }
                         }
                     )

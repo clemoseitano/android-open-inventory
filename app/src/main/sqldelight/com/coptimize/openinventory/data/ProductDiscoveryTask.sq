@@ -1,0 +1,17 @@
+-- Insert a new task
+insert:
+INSERT INTO product_discovery_tasks (product_id, task_id, status, stock_id)
+VALUES (:product_id, :task_id, :status, :stock_id);
+
+-- Update the status of a task
+update:
+UPDATE product_discovery_tasks
+SET status = :status,
+    task_result = :task_result
+WHERE task_id = :task_id;
+
+-- New query to select all tasks that are not completed or cancelled
+selectActive:
+SELECT * FROM product_discovery_tasks
+WHERE status IN ('pending')
+ORDER BY created_at DESC;

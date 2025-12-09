@@ -181,6 +181,27 @@ class AuthProductRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateProduct(product: Product) {
+        requireNotNull(product.userId) { "User ID cannot be null in Auth mode" }
+        db.transaction {
+            db.productQueries.update(
+                id = product.id,
+                name = product.name,
+                price = product.price,
+                category = product.category,
+                barcode = product.barcode,
+                manufacturer = product.manufacturer,
+                tax = product.tax,
+                taxIsFlatRate = if (product.isTaxFlatRate) 1L else 0L,
+                imagePath = product.imagePath,
+                userId = product.userId,
+                section = product.section,
+                shelf = product.shelf,
+                quantity_change = 0L
+            )
+        }
+    }
+
     override suspend fun deleteProduct(productId: String, userId: String?) {
         requireNotNull(userId) { "User ID is required for deletion in Auth mode" }
         db.productQueries.softDelete(productId, userId)
